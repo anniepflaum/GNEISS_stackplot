@@ -10,23 +10,24 @@ import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
+APP_DATA_DIR = DATA_DIR / "app_data"
+SOURCE_DATA_DIR = DATA_DIR / "source_data"
 B_FIELD_CSVS = {
-    "397": DATA_DIR / "b_field" / "b_despun_v2_397.csv",
-    "398": DATA_DIR / "b_field" / "b_despun_398.csv",
+    "397": SOURCE_DATA_DIR / "b_despun_v2_397.csv",
+    "398": SOURCE_DATA_DIR / "b_despun_398.csv",
 }
 E_FIELD_CSVS = {
-    "397": DATA_DIR / "e_field" / "despin_v2_397.csv",
-    "398": DATA_DIR / "e_field" / "despin_v2_398.csv",
+    "397": SOURCE_DATA_DIR / "despin_v2_397.csv",
+    "398": SOURCE_DATA_DIR / "despin_v2_398.csv",
 }
 BRIGHTNESS_CSV = (
-    DATA_DIR
-    / "traj_brightness"
+    SOURCE_DATA_DIR
     / "brightness_vs_time_20260210_101900_102848_step0p05.csv"
 )
-B_E_STACKPLOT_DATA_NPZ = DATA_DIR / "b_e_field_components_data.npz"
-TG_TO_MAGLAT_CSV = DATA_DIR / "tg_to_maglat.csv"
-B_E_TG_PLOT_PNG = DATA_DIR / "b_e_field_components_time_since_TG.png"
-B_E_MAGLAT_PLOT_PNG = DATA_DIR / "b_e_field_components_maglat.png"
+B_E_STACKPLOT_DATA_NPZ = APP_DATA_DIR / "b_e_field_components_data.npz"
+TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
+B_E_TG_PLOT_PNG = SOURCE_DATA_DIR / "b_e_field_components_time_since_TG.png"
+B_E_MAGLAT_PLOT_PNG = SOURCE_DATA_DIR / "b_e_field_components_maglat.png"
 ROCKET_COLORS = {
     "397": "tab:blue",
     "398": "tab:orange",

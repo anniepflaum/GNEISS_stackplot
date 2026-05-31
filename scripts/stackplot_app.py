@@ -12,12 +12,13 @@ from plotly.subplots import make_subplots
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
-B_E_NPZ = DATA_DIR / "b_e_field_components_data.npz"
-ERPA_HI_NPZ = DATA_DIR / "erpa_hi_data.npz"
-ERPA_TEMP_NPZ = DATA_DIR / "erpa_temp_data.npz"
-KEOGRAM_NPZ = DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.npz"
-FOOTPOINT_BRIGHTNESS_NPZ = DATA_DIR / "footpoint_brightness_data.npz"
-TG_TO_MAGLAT_CSV = DATA_DIR / "tg_to_maglat.csv"
+APP_DATA_DIR = DATA_DIR / "app_data"
+B_E_NPZ = APP_DATA_DIR / "b_e_field_components_data.npz"
+ERPA_HI_NPZ = APP_DATA_DIR / "erpa_hi_data.npz"
+ERPA_TEMP_NPZ = APP_DATA_DIR / "erpa_temp_data.npz"
+KEOGRAM_NPZ = APP_DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.npz"
+FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
+TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 TG_X_LIMITS_S = (0.0, 588.0)
 PANEL_HEIGHT_PX = 260
 MAX_POINTS_PER_TRACE = 12_000

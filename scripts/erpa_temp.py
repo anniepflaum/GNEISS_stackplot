@@ -9,12 +9,14 @@ import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
+APP_DATA_DIR = DATA_DIR / "app_data"
+SOURCE_DATA_DIR = DATA_DIR / "source_data"
 ERPA_HI_CSVS = {
-    "397": DATA_DIR / "ERPA" / "fwd397temp.csv",
-    "398": DATA_DIR / "ERPA" / "fwd398temp.csv",
+    "397": SOURCE_DATA_DIR / "fwd397temp.csv",
+    "398": SOURCE_DATA_DIR / "fwd398temp.csv",
 }
-ERPA_HI_NPZ = DATA_DIR / "erpa_temp_data.npz"
-TG_TO_MAGLAT_CSV = DATA_DIR / "tg_to_maglat.csv"
+ERPA_HI_NPZ = APP_DATA_DIR / "erpa_temp_data.npz"
+TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 T0_TG_OFFSET_S = {
     "397": 0.0,
     "398": 30.0,

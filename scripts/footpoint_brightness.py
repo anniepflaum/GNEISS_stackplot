@@ -9,8 +9,10 @@ import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
-BRIGHTNESS_CSV = DATA_DIR / "traj_brightness" / "brightness_vs_time_20260210_101900_102848_step0p05.csv"
-FOOTPOINT_BRIGHTNESS_NPZ = DATA_DIR / "footpoint_brightness_data.npz"
+APP_DATA_DIR = DATA_DIR / "app_data"
+SOURCE_DATA_DIR = DATA_DIR / "source_data"
+BRIGHTNESS_CSV = SOURCE_DATA_DIR / "brightness_vs_time_20260210_101900_102848_step0p05.csv"
+FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
 TRAJECTORY_FILES = {
     "397": Path(
         "/Users/anniepflaum/asi_mapping/trajectories/GNEISS/"

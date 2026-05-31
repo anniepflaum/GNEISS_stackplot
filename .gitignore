@@ -12,3 +12,6 @@ env/
 
 # Mac
 .DS_Store
+
+# Raw and intermediate data products
+data/source_data/
