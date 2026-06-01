@@ -8,9 +8,14 @@ import numpy as np
 import pandas as pd
 from scipy.io import loadmat
 
+try:
+    from .resampling import TIME_STEP_S, reduce_series_resolution
+except ImportError:
+    from resampling import TIME_STEP_S, reduce_series_resolution
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
+DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 ERAU_MAT = DATA_DIR / "source_data" / "ERAU_Raw_signal_export.mat"
 ERAU_NPZ = APP_DATA_DIR / "erau_signal_data.npz"
@@ -139,6 +144,7 @@ def export_erau_npz(
 
     for label, (time_since_tg_s, signal) in processed_erau_signals(mat_path).items():
         rocket = label[:-2]
+        time_since_tg_s, signal = reduce_series_resolution(time_since_tg_s, signal)
         time_key = f"{label}_time_since_TG_s"
         maglat_key = f"{label}_magnetic_lat_deg"
         value_key = f"{label}_signal"
@@ -166,6 +172,7 @@ def export_erau_npz(
         "maglat_mapping_file": TG_TO_MAGLAT_CSV.name,
         "median_window_samples": MEDIAN_WINDOW_SAMPLES,
         "t0_tg_offset_s": T0_TG_OFFSET_S,
+        "maximum_time_resolution_s": TIME_STEP_S,
         "series": series,
     }
     np.savez_compressed(

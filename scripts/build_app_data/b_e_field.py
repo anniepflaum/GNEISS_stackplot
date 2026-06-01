@@ -7,9 +7,14 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    from .resampling import TIME_STEP_S, reduce_series_resolution
+except ImportError:
+    from resampling import TIME_STEP_S, reduce_series_resolution
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
+DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 SOURCE_DATA_DIR = DATA_DIR / "source_data"
 B_FIELD_CSVS = {
@@ -166,6 +171,7 @@ def build_b_e_field_plot_data():
                 component_column=spec["component_column"],
                 rocket=rocket,
             )
+            time_s, values = reduce_series_resolution(time_s, values)
             key_prefix = b_e_series_key(
                 spec["panel"],
                 rocket,
@@ -216,6 +222,7 @@ def export_b_e_field_plot_data_npz(
         "b_field_files": {rocket: str(path) for rocket, path in B_FIELD_CSVS.items()},
         "e_field_files": {rocket: str(path) for rocket, path in E_FIELD_CSVS.items()},
         "maglat_mapping_file": str(TG_TO_MAGLAT_CSV),
+        "maximum_time_resolution_s": TIME_STEP_S,
     }
     np.savez_compressed(
         output_path,

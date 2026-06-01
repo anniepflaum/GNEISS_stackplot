@@ -8,18 +8,18 @@ import pandas as pd
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
+DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 SOURCE_DATA_DIR = DATA_DIR / "source_data"
 BRIGHTNESS_CSV = SOURCE_DATA_DIR / "brightness_vs_time_20260210_101900_102848_step0p05.csv"
 FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
 TRAJECTORY_FILES = {
     "397": Path(
-        "/Users/anniepflaum/asi_mapping/trajectories/GNEISS/"
+        "/Users/anniepflaum/lab317/asi_mapping/trajectories/GNEISS/"
         "36397_GPS_Time_Export_01.csv"
     ),
     "398": Path(
-        "/Users/anniepflaum/asi_mapping/trajectories/GNEISS/"
+        "/Users/anniepflaum/lab317/asi_mapping/trajectories/GNEISS/"
         "36398_GPS_Time_Export_00.csv"
     ),
 }

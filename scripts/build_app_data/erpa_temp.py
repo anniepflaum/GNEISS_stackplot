@@ -6,9 +6,14 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    from .resampling import TIME_STEP_S, reduce_series_resolution
+except ImportError:
+    from resampling import TIME_STEP_S, reduce_series_resolution
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
+DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 SOURCE_DATA_DIR = DATA_DIR / "source_data"
 ERPA_HI_CSVS = {
@@ -95,6 +100,7 @@ def export_erpa_temp_npz(
         maglat_key = f"{rocket}_magnetic_lat_deg"
         value_key = f"{rocket}_temp"
         time_since_tg_s, temp = load_erpa_temp(csv_path, rocket)
+        time_since_tg_s, temp = reduce_series_resolution(time_since_tg_s, temp)
         arrays[time_key] = time_since_tg_s
         arrays[maglat_key] = interpolate_maglat(
             time_since_tg_s,
@@ -119,6 +125,7 @@ def export_erpa_temp_npz(
             rocket: path.name for rocket, path in ERPA_HI_CSVS.items()
         },
         "maglat_mapping_file": TG_TO_MAGLAT_CSV.name,
+        "maximum_time_resolution_s": TIME_STEP_S,
         "series": series,
     }
     np.savez_compressed(

@@ -22,6 +22,7 @@ FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 TG_X_LIMITS_S = (0.0, 588.0)
 TIME_STEP_S = 0.05
+HEATMAP_TIME_STEP_S = 0.3
 PANEL_HEIGHT_PX = 260
 ROCKET_COLORS = {
     "397": "tab:blue",
@@ -44,6 +45,14 @@ def browser_values(values):
 
 COMMON_TIME_S = np.round(
     np.arange(TG_X_LIMITS_S[0], TG_X_LIMITS_S[1] + TIME_STEP_S / 2, TIME_STEP_S),
+    decimals=2,
+)
+HEATMAP_TIME_S = np.round(
+    np.arange(
+        TG_X_LIMITS_S[0],
+        TG_X_LIMITS_S[1] + HEATMAP_TIME_STEP_S / 2,
+        HEATMAP_TIME_STEP_S,
+    ),
     decimals=2,
 )
 
@@ -76,10 +85,14 @@ def resample_series_to_common_time(time_since_tg_s, values):
 
 
 def resample_matrix_to_common_time(time_since_tg_s, values):
-    """Interpolate each matrix row onto the shared 0.05 s TG grid."""
+    """Interpolate each matrix row onto the shared 0.3 s heatmap grid."""
     time_since_tg_s = np.asarray(time_since_tg_s)
     values = np.asarray(values)
-    target_time_s = common_time_subset(time_since_tg_s)
+    finite_time = time_since_tg_s[np.isfinite(time_since_tg_s)]
+    target_time_s = HEATMAP_TIME_S[
+        (HEATMAP_TIME_S >= np.min(finite_time))
+        & (HEATMAP_TIME_S <= np.max(finite_time))
+    ]
     resampled = np.vstack(
         [np.interp(target_time_s, time_since_tg_s, row) for row in values]
     )
@@ -740,4 +753,4 @@ def update_stackplot(selected_panel_ids, x_axis_mode):
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=8051)
+    app.run(debug=True, port=8051)
