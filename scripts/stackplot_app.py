@@ -14,15 +14,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 B_E_NPZ = APP_DATA_DIR / "b_e_field_components_data.npz"
+ERAU_NPZ = APP_DATA_DIR / "erau_signal_data.npz"
 ERPA_HI_NPZ = APP_DATA_DIR / "erpa_hi_data.npz"
 ERPA_TEMP_NPZ = APP_DATA_DIR / "erpa_temp_data.npz"
 KEOGRAM_NPZ = APP_DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.npz"
 FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 TG_X_LIMITS_S = (0.0, 588.0)
+TIME_STEP_S = 0.05
 PANEL_HEIGHT_PX = 260
-MAX_POINTS_PER_TRACE = 12_000
-MAX_KEOGRAM_COLUMNS = 600
 ROCKET_COLORS = {
     "397": "tab:blue",
     "398": "tab:orange",
@@ -38,32 +38,52 @@ def plotly_color(color: str) -> str:
 
 
 def browser_values(values):
-    """Convert NumPy arrays to browser-safe JSON lists after decimation."""
+    """Convert NumPy arrays to browser-safe JSON lists."""
     return np.asarray(values).tolist()
 
 
-def decimate_for_display(x, y, max_points: int = MAX_POINTS_PER_TRACE):
-    if len(x) <= max_points:
-        return x, y
-
-    stride = int(np.ceil(len(x) / max_points))
-    return x[::stride], y[::stride]
+COMMON_TIME_S = np.round(
+    np.arange(TG_X_LIMITS_S[0], TG_X_LIMITS_S[1] + TIME_STEP_S / 2, TIME_STEP_S),
+    decimals=2,
+)
 
 
-def decimate_b_e_for_display(time_since_tg_s, magnetic_lat_deg, y):
-    if len(y) <= MAX_POINTS_PER_TRACE:
-        return time_since_tg_s, magnetic_lat_deg, y
+def common_time_subset(time_since_tg_s):
+    """Return exact 0.05 s TG samples covered by an input time array."""
+    finite_time = np.asarray(time_since_tg_s)[np.isfinite(time_since_tg_s)]
+    if len(finite_time) == 0:
+        return np.array([], dtype=float)
 
-    stride = int(np.ceil(len(y) / MAX_POINTS_PER_TRACE))
-    return time_since_tg_s[::stride], magnetic_lat_deg[::stride], y[::stride]
+    return COMMON_TIME_S[
+        (COMMON_TIME_S >= np.min(finite_time))
+        & (COMMON_TIME_S <= np.max(finite_time))
+    ]
 
 
-def decimate_keogram_for_display(time_since_tg_s, magnetic_lat_deg, z):
-    if len(time_since_tg_s) <= MAX_KEOGRAM_COLUMNS:
-        return time_since_tg_s, magnetic_lat_deg, z
+def resample_series_to_common_time(time_since_tg_s, values):
+    """Interpolate one series onto the shared 0.05 s TG grid."""
+    time_since_tg_s = np.asarray(time_since_tg_s)
+    values = np.asarray(values)
+    valid = np.isfinite(time_since_tg_s) & np.isfinite(values)
+    source_time_s = time_since_tg_s[valid]
+    source_values = values[valid]
+    target_time_s = common_time_subset(source_time_s)
 
-    stride = int(np.ceil(len(time_since_tg_s) / MAX_KEOGRAM_COLUMNS))
-    return time_since_tg_s[::stride], magnetic_lat_deg[::stride], z[:, ::stride]
+    if len(source_time_s) == 0:
+        return target_time_s, np.array([], dtype=float)
+
+    return target_time_s, np.interp(target_time_s, source_time_s, source_values)
+
+
+def resample_matrix_to_common_time(time_since_tg_s, values):
+    """Interpolate each matrix row onto the shared 0.05 s TG grid."""
+    time_since_tg_s = np.asarray(time_since_tg_s)
+    values = np.asarray(values)
+    target_time_s = common_time_subset(time_since_tg_s)
+    resampled = np.vstack(
+        [np.interp(target_time_s, time_since_tg_s, row) for row in values]
+    )
+    return target_time_s, resampled
 
 
 def load_maglat_mappings() -> dict:
@@ -212,11 +232,11 @@ def load_b_e_panels() -> dict:
         else:
             panels[panel_id]["left_y_title"] = f"{series['component']} ({series['units']})"
 
-        time_since_tg_s, magnetic_lat_deg, y = decimate_b_e_for_display(
+        time_since_tg_s, y = resample_series_to_common_time(
             npz[series["time_key"]],
-            npz[series["maglat_key"]],
             npz[series["value_key"]],
         )
+        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, series["rocket"])
         panels[panel_id]["traces"].append(
             {
                 "time_since_tg_s": time_since_tg_s,
@@ -243,11 +263,11 @@ def load_footpoint_brightness_panel(altitude_km: int = 110) -> dict:
         key = f"{rocket}_{altitude_km}_brightness"
         brightness = data[key]
         valid = np.isfinite(brightness)
-        time_since_tg_s, magnetic_lat_deg, y = decimate_b_e_for_display(
+        time_since_tg_s, y = resample_series_to_common_time(
             all_time_since_tg_s[valid],
-            interpolate_maglat(all_time_since_tg_s[valid], rocket),
             brightness[valid],
         )
+        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, rocket)
         traces.append(
             {
                 "time_since_tg_s": time_since_tg_s,
@@ -272,6 +292,50 @@ def load_footpoint_brightness_panel(altitude_km: int = 110) -> dict:
     }
 
 
+def load_erau_panel() -> dict:
+    data = np.load(ERAU_NPZ)
+    metadata = json.loads(str(data["metadata_json"]))
+    traces = []
+    units = metadata["series"][0]["units"]
+
+    for series in metadata["series"]:
+        source_time_since_tg_s = data[series["time_key"]]
+        time_since_tg_s, signal = resample_series_to_common_time(
+            source_time_since_tg_s,
+            data[series["value_key"]],
+        )
+        magnetic_lat_deg = np.interp(
+            time_since_tg_s,
+            source_time_since_tg_s,
+            data[series["maglat_key"]],
+            left=np.nan,
+            right=np.nan,
+        )
+        rocket = series["label"][:3]
+        traces.append(
+            {
+                "time_since_tg_s": time_since_tg_s,
+                "magnetic_lat_deg": magnetic_lat_deg,
+                "y": signal,
+                "name": series["label"],
+                "color": plotly_color(ROCKET_COLORS[rocket]),
+                "dash": "solid",
+                "secondary_y": False,
+                "type": "scatter",
+                "render_mode": "svg",
+            }
+        )
+
+    return {
+        "label": "ERAU PIP",
+        "left_y_title": f"Current ({units})",
+        "right_y_title": None,
+        "left_y_type": "linear",
+        "source_files": source_file_names(metadata["source_data_file"]),
+        "traces": traces,
+    }
+
+
 def load_erpa_hi_panel() -> dict:
     data = np.load(ERPA_HI_NPZ)
     metadata = json.loads(str(data["metadata_json"]))
@@ -279,11 +343,11 @@ def load_erpa_hi_panel() -> dict:
     units = metadata["series"][0]["units"]
 
     for series in metadata["series"]:
-        time_since_tg_s, magnetic_lat_deg, hi = decimate_b_e_for_display(
+        time_since_tg_s, hi = resample_series_to_common_time(
             data[series["time_key"]],
-            data[series["maglat_key"]],
             data[series["value_key"]],
         )
+        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, series["rocket"])
         traces.append(
             {
                 "time_since_tg_s": time_since_tg_s,
@@ -315,11 +379,11 @@ def load_erpa_temp_panel() -> dict:
     units = metadata["series"][0]["units"]
 
     for series in metadata["series"]:
-        time_since_tg_s, magnetic_lat_deg, temp = decimate_b_e_for_display(
+        time_since_tg_s, temp = resample_series_to_common_time(
             data[series["time_key"]],
-            data[series["maglat_key"]],
             data[series["value_key"]],
         )
+        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, series["rocket"])
         traces.append(
             {
                 "time_since_tg_s": time_since_tg_s,
@@ -357,21 +421,24 @@ def load_keogram_panels() -> dict:
         flight_time_s = data[f"flight_time_{tag}_s"]
         trajectory_line_s = data[f"trajectory_line_{tag}_s"]
         y_min, y_max = data[f"y_limits_{tag}_s"]
-        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, tag)
-        valid_maglat = np.isfinite(magnetic_lat_deg)
 
         log_brightness = np.log10(np.clip(brightness, max(float(vmin), 1e-6), None))
-        heatmap_time_since_tg_s, heatmap_maglat_deg, heatmap_z = decimate_keogram_for_display(
+        heatmap_time_since_tg_s, heatmap_z = resample_matrix_to_common_time(
             time_since_tg_s,
-            magnetic_lat_deg,
             log_brightness,
         )
+        heatmap_maglat_deg = interpolate_maglat(heatmap_time_since_tg_s, tag)
         valid_heatmap_maglat = np.isfinite(heatmap_maglat_deg)
         valid_line = (
             np.isfinite(trajectory_line_s)
             & (trajectory_line_s >= y_min)
             & (trajectory_line_s <= y_max)
         )
+        trajectory_time_since_tg_s, trajectory_line_s = resample_series_to_common_time(
+            time_since_tg_s[valid_line],
+            trajectory_line_s[valid_line],
+        )
+        trajectory_maglat_deg = interpolate_maglat(trajectory_time_since_tg_s, tag)
 
         panels[f"keogram_{tag}"] = {
             "label": f"{tag} trajectory keogram",
@@ -396,9 +463,9 @@ def load_keogram_panels() -> dict:
                 },
                 {
                     "type": "scatter",
-                    "time_since_tg_s": time_since_tg_s[valid_line],
-                    "magnetic_lat_deg": magnetic_lat_deg[valid_line],
-                    "y": trajectory_line_s[valid_line],
+                    "time_since_tg_s": trajectory_time_since_tg_s,
+                    "magnetic_lat_deg": trajectory_maglat_deg,
+                    "y": trajectory_line_s,
                     "name": f"{tag} trajectory",
                     "color": plotly_color(ROCKET_COLORS.get(tag, "#d62728")),
                     "dash": "solid",
@@ -413,6 +480,7 @@ def load_keogram_panels() -> dict:
 
 def load_panels() -> dict:
     panels = {}
+    panels["erau"] = load_erau_panel()
     panels["erpa_hi"] = load_erpa_hi_panel()
     panels["erpa_temp"] = load_erpa_temp_panel()
     panels.update(load_b_e_panels())
@@ -423,6 +491,7 @@ def load_panels() -> dict:
 
 PANEL_DEFS = load_panels()
 PANEL_ORDER = [
+    "erau",
     "erpa_temp",
     "erpa_hi",
     "b_north_e_east",
