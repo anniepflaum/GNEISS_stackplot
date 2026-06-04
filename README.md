@@ -12,6 +12,7 @@ GNEISS_stackplot/
 ├── data/
 │   ├── app_data/
 │   │   ├── b_e_field_components_data.npz
+│   │   ├── erau_signal_data.npz
 │   │   ├── erpa_hi_data.npz
 │   │   ├── erpa_temp_data.npz
 │   │   ├── footpoint_brightness_data.npz
@@ -19,12 +20,14 @@ GNEISS_stackplot/
 │   │   └── trajectory_keogram_green_20260210_101900_102848.npz
 │   └── source_data/
 └── scripts/
+    ├── build_app_data/
+    │   ├── b_e_field.py
+    │   ├── erau.py
+    │   ├── erpa_hi.py
+    │   ├── erpa_temp.py
+    │   └── footpoint_brightness.py
     ├── stackplot_app.py
-    ├── requirements.txt
-    ├── b_e_field.py
-    ├── erpa_hi.py
-    ├── erpa_temp.py
-    └── footpoint_brightness.py
+    └── requirements.txt
 ```
 
 The plotting scripts create the NPZ data products. The instructions below
@@ -44,6 +47,7 @@ Open [http://127.0.0.1:8051](http://127.0.0.1:8051) in a browser.
 
 The app includes:
 
+- ERAU PIP
 - ERPA temperature
 - ERPA hi
 - B north and E east

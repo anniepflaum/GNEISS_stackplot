@@ -24,6 +24,8 @@ TG_X_LIMITS_S = (0.0, 588.0)
 TIME_STEP_S = 0.05
 HEATMAP_TIME_STEP_S = 0.3
 PANEL_HEIGHT_PX = 260
+PANEL_GAP_PX = 90
+PLOT_VERTICAL_MARGIN_PX = 55
 ROCKET_COLORS = {
     "397": "tab:blue",
     "398": "tab:orange",
@@ -530,6 +532,20 @@ def heatmap_z_values(trace: dict, use_maglat: bool):
     return trace["z"]
 
 
+def stackplot_height(row_count: int) -> int:
+    """Return a figure height that reserves a fixed gap between panel rows."""
+    return max(360, PANEL_HEIGHT_PX * row_count + PANEL_GAP_PX * (row_count - 1))
+
+
+def subplot_vertical_spacing(row_count: int) -> float:
+    """Convert the fixed inter-panel pixel gap to Plotly domain units."""
+    if row_count <= 1:
+        return 0.0
+
+    plot_height_px = stackplot_height(row_count) - 2 * PLOT_VERTICAL_MARGIN_PX
+    return PANEL_GAP_PX / plot_height_px
+
+
 def build_stackplot(
     selected_panel_ids: list[str],
     x_axis_mode: str = "time_since_TG",
@@ -563,7 +579,7 @@ def build_stackplot(
         rows=len(selected_panel_ids),
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.075,
+        vertical_spacing=subplot_vertical_spacing(len(selected_panel_ids)),
         specs=specs,
         subplot_titles=subplot_titles,
     )
@@ -674,8 +690,13 @@ def build_stackplot(
         )
     fig.update_layout(
         template="plotly_white",
-        height=max(360, PANEL_HEIGHT_PX * len(selected_panel_ids)),
-        margin={"l": 80, "r": 240, "t": 55, "b": 55},
+        height=stackplot_height(len(selected_panel_ids)),
+        margin={
+            "l": 80,
+            "r": 240,
+            "t": PLOT_VERTICAL_MARGIN_PX,
+            "b": PLOT_VERTICAL_MARGIN_PX,
+        },
         hovermode="x unified",
         showlegend=False,
     )
