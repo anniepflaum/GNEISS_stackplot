@@ -17,6 +17,8 @@ B_E_NPZ = APP_DATA_DIR / "b_e_field_components_data.npz"
 ERAU_NPZ = APP_DATA_DIR / "erau_signal_data.npz"
 ERPA_HI_NPZ = APP_DATA_DIR / "erpa_hi_data.npz"
 ERPA_TEMP_NPZ = APP_DATA_DIR / "erpa_temp_data.npz"
+CHIMPS_NPZ = APP_DATA_DIR / "chimps_397_downgoing_data.npz"
+PIP_VOFF_NPZ = APP_DATA_DIR / "pip3_0_voff_data.npz"
 KEOGRAM_NPZ = APP_DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.npz"
 FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
@@ -24,7 +26,7 @@ TG_X_LIMITS_S = (0.0, 588.0)
 TIME_STEP_S = 0.05
 HEATMAP_TIME_STEP_S = 0.3
 PANEL_HEIGHT_PX = 260
-PANEL_GAP_PX = 90
+PANEL_GAP_PX = 42
 PLOT_VERTICAL_MARGIN_PX = 55
 ROCKET_COLORS = {
     "397": "tab:blue",
@@ -178,9 +180,33 @@ def add_panel_legend(fig: go.Figure, row: int, legend_items: list[dict]) -> None
             showarrow=False,
             xanchor="left",
             yanchor="middle",
-            font={"size": 12},
+            font={"size": 15},
             bgcolor="rgba(255,255,255,0.85)",
         )
+
+
+def add_panel_title(fig: go.Figure, row: int, title: str) -> None:
+    """Place a subplot title inside the upper-left corner of one panel."""
+    xaxis_name = "xaxis" if row == 1 else f"xaxis{row}"
+    yaxis_name = "yaxis" if row == 1 else f"yaxis{2 * row - 1}"
+    x_domain = getattr(fig.layout, xaxis_name).domain
+    y_domain = getattr(fig.layout, yaxis_name).domain
+    row_height = y_domain[1] - y_domain[0]
+
+    fig.add_annotation(
+        xref="paper",
+        yref="paper",
+        x=x_domain[0] + 0.012,
+        y=y_domain[1] - 0.06 * row_height,
+        text=title,
+        showarrow=False,
+        xanchor="left",
+        yanchor="top",
+        align="left",
+        font={"size": 20},
+        bgcolor="rgba(255,255,255,0.85)",
+        borderpad=3,
+    )
 
 
 def source_file_names(source_data_file) -> list[str]:
@@ -200,14 +226,15 @@ def source_file_names(source_data_file) -> list[str]:
     return list(dict.fromkeys(display_name(value) for value in values if value))
 
 
-def panel_title(panel: dict) -> str:
+def panel_title(panel: dict, show_source_subtitle: bool = True) -> str:
     """Format a subplot title with source filenames on a second line."""
+    title = f"<b>{panel['label']}</b>"
     source_files = panel.get("source_files", [])
-    if not source_files:
-        return panel["label"]
+    if not show_source_subtitle or not source_files:
+        return title
 
     sources = ", ".join(source_files)
-    return f"{panel['label']}<br><span style='font-size:10px'>Source data: {sources}</span>"
+    return f"{title}<br><span style='font-size:12px'>Source data: {sources}</span>"
 
 
 def load_b_e_panels() -> dict:
@@ -423,6 +450,118 @@ def load_erpa_temp_panel() -> dict:
     }
 
 
+def load_chimps_panels() -> dict:
+    data = np.load(CHIMPS_NPZ)
+    metadata = json.loads(str(data["metadata_json"]))
+    time_since_tg_s = data["time_since_TG_s"]
+    log10_energy_eV = data["log10_energy_eV"]
+    log10_counts = data["log10_counts"]
+    total_counts_time_since_tg_s, total_counts = resample_series_to_common_time(
+        time_since_tg_s,
+        data["total_counts"],
+    )
+    heatmap_time_since_tg_s, heatmap_log10_counts = resample_matrix_to_common_time(
+        time_since_tg_s,
+        log10_counts,
+    )
+    heatmap_maglat_deg = interpolate_maglat(
+        heatmap_time_since_tg_s,
+        metadata["rocket"],
+    )
+    total_counts_maglat_deg = interpolate_maglat(
+        total_counts_time_since_tg_s,
+        metadata["rocket"],
+    )
+    valid_heatmap_maglat = np.isfinite(heatmap_maglat_deg)
+    zmin, zmax = metadata["log10_counts_limits"]
+
+    return {
+        "chimps_spectrogram": {
+            "label": "CHIMPS downgoing electrons",
+            "left_y_title": "Log10(Energy in eV)",
+            "right_y_title": None,
+            "left_y_type": "linear",
+            "left_y_range": [2.25, 4.16],
+            "source_files": source_file_names(metadata["source_data_file"]),
+            "traces": [
+                {
+                    "type": "heatmap",
+                    "time_since_tg_s": heatmap_time_since_tg_s,
+                    "magnetic_lat_deg": heatmap_maglat_deg[valid_heatmap_maglat],
+                    "y": log10_energy_eV,
+                    "z": heatmap_log10_counts,
+                    "z_maglat": heatmap_log10_counts[:, valid_heatmap_maglat],
+                    "name": "397 CHIMPS downgoing electrons",
+                    "colorscale": "Jet",
+                    "zmin": zmin,
+                    "zmax": zmax,
+                    "colorbar_title": "log counts",
+                    "secondary_y": False,
+                },
+            ],
+        },
+        "chimps_total_counts": {
+            "label": "CHIMPS total counts",
+            "left_y_title": "Total Counts",
+            "right_y_title": None,
+            "left_y_type": "linear",
+            "left_y_range": [0, 30000],
+            "source_files": source_file_names(metadata["source_data_file"]),
+            "traces": [
+                {
+                    "type": "scatter",
+                    "time_since_tg_s": total_counts_time_since_tg_s,
+                    "magnetic_lat_deg": total_counts_maglat_deg,
+                    "y": total_counts,
+                    "name": "397 CHIMPS total counts",
+                    "color": plotly_color(ROCKET_COLORS["397"]),
+                    "dash": "solid",
+                    "secondary_y": False,
+                    "render_mode": "svg",
+                },
+            ],
+        },
+    }
+
+
+def load_pip_voff_panels() -> dict:
+    data = np.load(PIP_VOFF_NPZ)
+    metadata = json.loads(str(data["metadata_json"]))
+    panels = {}
+
+    for series in metadata["series"]:
+        rocket = series["rocket"]
+        panels[f"pip_voff_{rocket}"] = {
+            "label": f"{rocket} PIP3 Voff",
+            "left_y_title": f"Voff ({series['units']})",
+            "right_y_title": None,
+            "left_y_type": "linear",
+            "left_y_range": list(metadata["y_limits_v"]),
+            "source_files": source_file_names(series["source_data_file"]),
+            "traces": [
+                {
+                    "type": "scatter",
+                    "time_since_tg_s": data[series["time_key"]],
+                    "magnetic_lat_deg": data[series["maglat_key"]],
+                    "y": data[series["value_key"]],
+                    "name": series["label"],
+                    "color": plotly_color(ROCKET_COLORS[rocket]),
+                    "dash": "solid",
+                    "secondary_y": False,
+                    "render_mode": "svg",
+                    "mode": "markers",
+                    "marker": {
+                        "color": plotly_color(ROCKET_COLORS[rocket]),
+                        "size": 3,
+                        "opacity": 0.25,
+                    },
+                },
+            ],
+        }
+
+    return panels
+
+
 def load_keogram_panels() -> dict:
     data = np.load(KEOGRAM_NPZ)
     metadata = json.loads(str(data["metadata_json"]))
@@ -498,6 +637,8 @@ def load_panels() -> dict:
     panels["erau"] = load_erau_panel()
     panels["erpa_hi"] = load_erpa_hi_panel()
     panels["erpa_temp"] = load_erpa_temp_panel()
+    panels.update(load_chimps_panels())
+    panels.update(load_pip_voff_panels())
     panels.update(load_b_e_panels())
     panels["footpoint_brightness"] = load_footpoint_brightness_panel(altitude_km=110)
     panels.update(load_keogram_panels())
@@ -506,6 +647,10 @@ def load_panels() -> dict:
 
 PANEL_DEFS = load_panels()
 PANEL_ORDER = [
+    "chimps_spectrogram",
+    "chimps_total_counts",
+    "pip_voff_397",
+    "pip_voff_398",
     "erau",
     "erpa_temp",
     "erpa_hi",
@@ -549,6 +694,7 @@ def subplot_vertical_spacing(row_count: int) -> float:
 def build_stackplot(
     selected_panel_ids: list[str],
     x_axis_mode: str = "time_since_TG",
+    show_source_subtitles: bool = False,
 ) -> go.Figure:
     selected_panel_ids = [
         panel_id for panel_id in PANEL_ORDER if panel_id in selected_panel_ids
@@ -574,14 +720,12 @@ def build_stackplot(
         return fig
 
     specs = [[{"secondary_y": True}] for _ in selected_panel_ids]
-    subplot_titles = [panel_title(PANEL_DEFS[panel_id]) for panel_id in selected_panel_ids]
     fig = make_subplots(
         rows=len(selected_panel_ids),
         cols=1,
         shared_xaxes=True,
         vertical_spacing=subplot_vertical_spacing(len(selected_panel_ids)),
         specs=specs,
-        subplot_titles=subplot_titles,
     )
 
     for row, panel_id in enumerate(selected_panel_ids, start=1):
@@ -630,13 +774,14 @@ def build_stackplot(
                 scatter_class(
                     x=browser_values(trace_x_values(trace, use_maglat)),
                     y=browser_values(trace["y"]),
-                    mode="lines",
+                    mode=trace.get("mode", "lines"),
                     name=trace["name"],
                     line={
                         "color": trace["color"],
                         "dash": trace["dash"],
                         "width": 1.2,
                     },
+                    marker=trace.get("marker"),
                     legendgroup=trace["name"],
                     showlegend=False,
                     hoverinfo="skip" if is_keogram_trajectory else "all",
@@ -653,6 +798,8 @@ def build_stackplot(
 
         fig.update_yaxes(
             title_text=panel["left_y_title"],
+            title_font={"size": 15},
+            tickfont={"size": 15},
             type=panel.get("left_y_type", "linear"),
             range=panel.get("left_y_range"),
             row=row,
@@ -662,6 +809,8 @@ def build_stackplot(
         if panel["right_y_title"]:
             fig.update_yaxes(
                 title_text=panel["right_y_title"],
+                title_font={"size": 15},
+                tickfont={"size": 15},
                 range=panel.get("right_y_range"),
                 row=row,
                 col=1,
@@ -670,11 +819,18 @@ def build_stackplot(
         else:
             fig.update_yaxes(showticklabels=False, row=row, col=1, secondary_y=True)
         add_panel_legend(fig, row, legend_items)
+        add_panel_title(fig, row, panel_title(panel, show_source_subtitles))
 
     for row in range(1, len(selected_panel_ids) + 1):
+        is_bottom_row = row == len(selected_panel_ids)
+        x_axis_title = (
+            "Magnetic latitude (deg)" if use_maglat else "Time since TG (s)"
+        )
         fig.update_xaxes(
             range=None if use_maglat else list(TG_X_LIMITS_S),
-            title_text="Magnetic latitude (deg)" if use_maglat else "Time since TG (s)",
+            title_text=x_axis_title if is_bottom_row else None,
+            title_font={"size": 15},
+            tickfont={"size": 15},
             showticklabels=True,
             row=row,
             col=1,
@@ -713,8 +869,9 @@ app.layout = html.Div(
                 dcc.Checklist(
                     id="panel-selector",
                     options=[
-                        {"label": panel["label"], "value": panel_id}
-                        for panel_id, panel in PANEL_DEFS.items()
+                        {"label": PANEL_DEFS[panel_id]["label"], "value": panel_id}
+                        for panel_id in PANEL_ORDER
+                        if panel_id in PANEL_DEFS
                     ],
                     value=DEFAULT_PANELS,
                     inline=True,
@@ -742,6 +899,23 @@ app.layout = html.Div(
                     ],
                     style={"display": "flex", "alignItems": "center", "marginTop": "8px"},
                 ),
+                html.Div(
+                    [
+                        dcc.Checklist(
+                            id="source-subtitle-toggle",
+                            options=[
+                                {
+                                    "label": "Show source data subtitles",
+                                    "value": "show",
+                                },
+                            ],
+                            value=[],
+                            inline=True,
+                            inputStyle={"marginRight": "6px"},
+                        ),
+                    ],
+                    style={"marginTop": "8px"},
+                ),
             ],
             style={
                 "position": "sticky",
@@ -767,10 +941,16 @@ app.layout = html.Div(
     Output("stackplot", "figure"),
     Input("panel-selector", "value"),
     Input("x-axis-mode", "value"),
+    Input("source-subtitle-toggle", "value"),
     prevent_initial_call=True,
 )
-def update_stackplot(selected_panel_ids, x_axis_mode):
-    return build_stackplot(selected_panel_ids or [], x_axis_mode)
+def update_stackplot(selected_panel_ids, x_axis_mode, source_subtitle_toggle):
+    show_source_subtitles = "show" in (source_subtitle_toggle or [])
+    return build_stackplot(
+        selected_panel_ids or [],
+        x_axis_mode,
+        show_source_subtitles,
+    )
 
 
 if __name__ == "__main__":

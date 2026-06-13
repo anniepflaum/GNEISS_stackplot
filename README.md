@@ -12,10 +12,12 @@ GNEISS_stackplot/
 ├── data/
 │   ├── app_data/
 │   │   ├── b_e_field_components_data.npz
+│   │   ├── chimps_397_downgoing_data.npz
 │   │   ├── erau_signal_data.npz
 │   │   ├── erpa_hi_data.npz
 │   │   ├── erpa_temp_data.npz
 │   │   ├── footpoint_brightness_data.npz
+│   │   ├── pip3_0_voff_data.npz
 │   │   ├── tg_to_maglat.csv
 │   │   └── trajectory_keogram_green_20260210_101900_102848.npz
 │   └── source_data/
@@ -50,6 +52,9 @@ The app includes:
 - ERAU PIP
 - ERPA temperature
 - ERPA hi
+- CHIMPS downgoing electron energy-time spectrogram
+- CHIMPS downgoing electron total counts
+- PIP3 low-gain Voff for rockets 397 and 398
 - B north and E east
 - B east and E north
 - Footpoint brightness at 110 km
@@ -65,3 +70,35 @@ panels between time since TG and magnetic latitude.
 
 `data/source_data/` contains raw and intermediate inputs used to regenerate the
 prepared NPZ files. The stackplot app does not read that folder directly.
+
+## Data Processing Notes
+
+The stackplot is not a raw-sample viewer. The prepared NPZ files and the app
+apply a few display-oriented transformations:
+
+- B/E field, ERPA hi, ERPA temperature, and ERAU PIP line series are capped at a
+  maximum `0.05 s` TG-time resolution when the NPZ files are exported. If the
+  source cadence is finer than that, values are linearly interpolated onto a
+  `0.05 s` grid; coarser source series are left at their native finite sample
+  times.
+- ERAU PIP is additionally sorted by TG time, duplicate times are reduced to the
+  first sample, the configured TG offset is applied, and a centered 100-sample
+  rolling median is applied before export.
+- CHIMPS 397 downgoing-electron data are sorted by time, duplicate times are
+  reduced to the first sample, and `log10_counts` is stored as
+  `log10(max(counts, 1))` for the energy-time spectrogram. The total-count line
+  is stored without smoothing.
+- PIP3 low-gain Voff uses the positive time samples from the sigmoid-fit
+  exports to match the source notebook, and stores one separate series each for
+  rockets 397 and 398 without smoothing or downsampling.
+- In the Dash app, line panels are linearly interpolated onto the shared
+  `0.05 s` TG grid for aligned display. Trajectory keogram image rows are
+  linearly interpolated onto a shared `0.3 s` display grid. The CHIMPS
+  spectrogram is also interpolated onto that `0.3 s` display grid.
+- Magnetic latitude is not an independent source measurement in the NPZ series;
+  it is linearly interpolated from `data/app_data/tg_to_maglat.csv` for the
+  selected rocket and TG time samples.
+- Keogram brightness is displayed as `log10` brightness with clipping at the
+  stored brightness limits. Footpoint brightness values are read from the
+  prepared brightness CSV and are only interpolated by the app onto the shared
+  line-panel grid for display.
