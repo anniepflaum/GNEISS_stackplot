@@ -239,7 +239,7 @@ def panel_title(panel: dict, show_source_subtitle: bool = True) -> str:
 
 
 def load_b_e_panels() -> dict:
-    npz = np.load(B_E_NPZ)
+    npz = np.load(B_E_NPZ, allow_pickle=True)
     metadata = json.loads(str(npz["metadata_json"]))
     provenance = json.loads(str(npz["provenance_json"]))
     source_files = source_file_names(
