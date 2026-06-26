@@ -19,6 +19,7 @@ ERPA_HI_NPZ = APP_DATA_DIR / "erpa_hi_data.npz"
 ERPA_TEMP_NPZ = APP_DATA_DIR / "erpa_temp_data.npz"
 CHIMPS_NPZ = APP_DATA_DIR / "chimps_397_downgoing_data.npz"
 PIP_VOFF_NPZ = APP_DATA_DIR / "pip3_0_voff_data.npz"
+EXB_NPZ = APP_DATA_DIR / "exb_components_data.npz"
 KEOGRAM_NPZ = APP_DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.npz"
 FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
@@ -562,6 +563,48 @@ def load_pip_voff_panels() -> dict:
     return panels
 
 
+def load_exb_panels() -> dict:
+    data = np.load(EXB_NPZ)
+    metadata = json.loads(str(data["metadata_json"]))
+    panels = {}
+    component_labels = {
+        "east": "ExB east",
+        "north": "ExB north",
+        "up": "ExB up",
+    }
+
+    for series in metadata["series"]:
+        component = series["component"]
+        panel_id = f"exb_{component}"
+        panels.setdefault(
+            panel_id,
+            {
+                "label": component_labels.get(component, f"ExB {component}"),
+                "left_y_title": f"{component_labels.get(component, component)} ({series['units']})",
+                "right_y_title": None,
+                "left_y_type": "linear",
+                "left_y_range": metadata["y_limits"][component],
+                "source_files": source_file_names(metadata["source_data_file"]),
+                "traces": [],
+            },
+        )
+        panels[panel_id]["traces"].append(
+            {
+                "type": "scatter",
+                "time_since_tg_s": data[series["time_key"]],
+                "magnetic_lat_deg": data[series["maglat_key"]],
+                "y": data[series["value_key"]],
+                "name": series["label"],
+                "color": plotly_color(series["color"]),
+                "dash": "solid",
+                "secondary_y": False,
+                "render_mode": "svg",
+            }
+        )
+
+    return panels
+
+
 def load_keogram_panels() -> dict:
     data = np.load(KEOGRAM_NPZ)
     metadata = json.loads(str(data["metadata_json"]))
@@ -639,6 +682,7 @@ def load_panels() -> dict:
     panels["erpa_temp"] = load_erpa_temp_panel()
     panels.update(load_chimps_panels())
     panels.update(load_pip_voff_panels())
+    panels.update(load_exb_panels())
     panels.update(load_b_e_panels())
     panels["footpoint_brightness"] = load_footpoint_brightness_panel(altitude_km=110)
     panels.update(load_keogram_panels())
@@ -654,6 +698,9 @@ PANEL_ORDER = [
     "erau",
     "erpa_temp",
     "erpa_hi",
+    "exb_east",
+    "exb_north",
+    "exb_up",
     "b_north_e_east",
     "b_east_e_north",
     "footpoint_brightness",

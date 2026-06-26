@@ -16,6 +16,7 @@ GNEISS_stackplot/
 │   │   ├── erau_signal_data.npz
 │   │   ├── erpa_hi_data.npz
 │   │   ├── erpa_temp_data.npz
+│   │   ├── exb_components_data.npz
 │   │   ├── footpoint_brightness_data.npz
 │   │   ├── pip3_0_voff_data.npz
 │   │   ├── tg_to_maglat.csv
@@ -55,6 +56,7 @@ The app includes:
 - CHIMPS downgoing electron energy-time spectrogram
 - CHIMPS downgoing electron total counts
 - PIP3 low-gain Voff for rockets 397 and 398
+- ExB east, north, and up
 - B north and E east
 - B east and E north
 - Footpoint brightness at 110 km
