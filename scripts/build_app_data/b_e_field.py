@@ -22,8 +22,8 @@ B_FIELD_CSVS = {
     "398": SOURCE_DATA_DIR / "b_despun_398.csv",
 }
 E_FIELD_CSVS = {
-    "397": SOURCE_DATA_DIR / "despin_v2_397.csv",
-    "398": SOURCE_DATA_DIR / "despin_v2_398.csv",
+    "397": SOURCE_DATA_DIR / "e_despun_subtracted_v1_397.csv",
+    "398": SOURCE_DATA_DIR / "e_despun_subtracted_v1_398.csv",
 }
 BRIGHTNESS_CSV = (
     SOURCE_DATA_DIR

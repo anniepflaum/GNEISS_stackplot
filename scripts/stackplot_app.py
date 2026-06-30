@@ -568,9 +568,9 @@ def load_exb_panels() -> dict:
     metadata = json.loads(str(data["metadata_json"]))
     panels = {}
     component_labels = {
-        "east": "ExB east",
-        "north": "ExB north",
-        "up": "ExB up",
+        "east": "(ExB)/B^2 east",
+        "north": "(ExB)/B^2 north",
+        "up": "(ExB)/B^2 up",
     }
 
     for series in metadata["series"]:

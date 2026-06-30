@@ -37,9 +37,9 @@ TG_X_LIMITS_S = (0.0, 588.0)
 Y_LIMIT_TIME_RANGE_S = (90.0, 520.0)
 ROBUST_Y_PERCENTILES = (0.1, 99.99)
 COMPONENTS = (
-    {"key": "east", "column": 1, "label": "ExB east"},
-    {"key": "north", "column": 2, "label": "ExB north"},
-    {"key": "up", "column": 3, "label": "ExB up"},
+    {"key": "east", "column": 1, "label": "(ExB)/B^2 east"},
+    {"key": "north", "column": 2, "label": "(ExB)/B^2 north"},
+    {"key": "up", "column": 3, "label": "(ExB)/B^2 up"},
 )
 
 

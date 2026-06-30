@@ -56,7 +56,7 @@ The app includes:
 - CHIMPS downgoing electron energy-time spectrogram
 - CHIMPS downgoing electron total counts
 - PIP3 low-gain Voff for rockets 397 and 398
-- ExB east, north, and up
+- (ExB)/B^2 east, north, and up
 - B north and E east
 - B east and E north
 - Footpoint brightness at 110 km
