@@ -18,6 +18,10 @@ TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 ROCKETS = ("397", "398")
 PIP_NAME = "PIP3"
 GAIN = "0"
+T0_TG_OFFSET_S = {
+    "397": 0.0,
+    "398": 30.0,
+}
 SCATTER_KWARGS = {
     "color": "green",
     "s": 1,
@@ -36,7 +40,7 @@ def pip_voff_paths(rocket: str) -> tuple[Path, Path]:
 
 
 def load_pip_voff(rocket: str):
-    """Load notebook-matched positive flight time samples and Voff values."""
+    """Load notebook-matched Voff samples and convert local t0 to TG time."""
     time_path, voff_path = pip_voff_paths(rocket)
     time_s = np.load(time_path)
     voff = np.load(voff_path)
@@ -48,7 +52,7 @@ def load_pip_voff(rocket: str):
             f"{len(positive_time_s)} != {len(voff)}"
         )
 
-    return positive_time_s, voff
+    return positive_time_s + T0_TG_OFFSET_S[rocket], voff
 
 
 def load_maglat_mapping(csv_path: str | Path = TG_TO_MAGLAT_CSV) -> dict:
@@ -125,9 +129,13 @@ def export_pip_voff_npz(
         "pip": PIP_NAME,
         "gain": GAIN,
         "maglat_mapping_file": TG_TO_MAGLAT_CSV.name,
+        "t0_tg_offset_s": T0_TG_OFFSET_S,
         "x_limits_s": X_LIMITS_S,
         "y_limits_v": Y_LIMITS_V,
-        "processing": "uses positive time samples to match the notebook plot",
+        "processing": (
+            "uses positive local-flight-time samples to match the notebook plot, "
+            "then applies each rocket's local-t0-to-TG offset"
+        ),
         "series": series,
     }
     np.savez_compressed(
@@ -142,7 +150,7 @@ def plot_pip_voff(
     output_path: str | Path | None = PIP_VOFF_PLOT_PNG,
     show: bool = True,
 ):
-    """Plot low-gain PIP3 Voff versus flight time for both rockets."""
+    """Plot low-gain PIP3 Voff versus time since TG for both rockets."""
     fig, axes = plt.subplots(len(ROCKETS), 1, figsize=(8, 6))
 
     for ax, rocket in zip(axes, ROCKETS):
@@ -151,7 +159,7 @@ def plot_pip_voff(
         ax.set_xlim(*X_LIMITS_S)
         ax.set_ylim(*Y_LIMITS_V)
         ax.set_ylabel("Voff")
-        ax.set_xlabel("flight time")
+        ax.set_xlabel("Time since TG (s)")
         ax.set_title(f"{rocket} Low Gain Voff vs time")
 
     fig.tight_layout()
