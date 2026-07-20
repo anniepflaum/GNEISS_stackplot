@@ -13,6 +13,10 @@ env/
 # Mac
 .DS_Store
 
-# Raw and intermediate data products
-data/source_data/
+# Raw and intermediate data products must never be committed.
+/data/source_data/**
 scripts/pips/
+
+# Prepared runtime data is distributed through Google Drive, not GitHub.
+/data/app_data/*.h5
+/data/app_data/tg_to_maglat.csv

@@ -21,8 +21,7 @@ GNEISS_stackplot/
 │   │   ├── pip3_0_voff_data.h5
 │   │   ├── tg_to_maglat.csv
 │   │   └── trajectory_keogram_green_20260210_101900_102848.h5
-│   └── source_data/
-│       └── brightness_vs_time_20260210_101900_102848_step0p05.h5
+│   └── source_data/  # local raw/intermediate files; not distributed on GitHub
 └── scripts/
     ├── build_app_data/
     │   ├── b_e_field.py
@@ -36,6 +35,45 @@ GNEISS_stackplot/
 
 The build scripts create full-resolution HDF5 data products. The instructions
 below assume those HDF5 files already exist.
+
+## Download the Prepared App Data
+
+The prepared data files are distributed through this
+[Google Drive folder](https://drive.google.com/drive/folders/1sWuMmZqaibpiW2QdS6Lfk99z1P1Y9LKN?usp=drive_link),
+not through GitHub.
+
+1. Open the Google Drive link in a browser. Sign in or request access if Google
+   Drive prompts you to do so.
+2. Select all files in the folder and choose **Download**. Google Drive may
+   package the files into one or more ZIP archives.
+3. Extract the downloaded archive or archives.
+4. Copy the files themselves into `GNEISS_stackplot/data/app_data/`. Do not put
+   an additional Google Drive folder or ZIP file inside `app_data`.
+5. Confirm that the following paths exist directly inside `data/app_data/`:
+
+```text
+b_e_field_components_data.h5
+chimps_397_downgoing_data.h5
+erau_signal_data.h5
+erpa_hi_data.h5
+erpa_temp_data.h5
+footpoint_brightness_data.h5
+pip3_0_voff_data.h5
+tg_to_maglat.csv
+trajectory_keogram_green_20260210_101900_102848.h5
+```
+
+`exb_components_data.h5` may also be included in the download, but the ExB
+panels are currently hidden and the app does not require that file to start.
+
+From the repository root, the installation can be checked with:
+
+```bash
+ls -lh data/app_data
+```
+
+If a required filename is missing or nested inside another directory, the app
+will stop during startup with a file-not-found error.
 
 ## Run the Stackplot App
 
@@ -71,8 +109,10 @@ panels between time since TG and magnetic latitude.
 `scripts/stackplot_app.py` expects the prepared HDF5 files and
 `tg_to_maglat.csv` listed above under `data/app_data/`.
 
-`data/source_data/` contains raw and intermediate inputs used to regenerate the
-prepared HDF5 files. The stackplot app does not read that folder directly.
+`data/source_data/` contains local raw and intermediate inputs used to
+regenerate the prepared HDF5 files. The stackplot app does not read that folder
+directly. Its contents are excluded by `.gitignore` and must not be uploaded to
+GitHub.
 
 ## Data Processing Notes
 
