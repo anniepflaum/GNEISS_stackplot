@@ -11,17 +11,18 @@ since TG and magnetic latitude.
 GNEISS_stackplot/
 ├── data/
 │   ├── app_data/
-│   │   ├── b_e_field_components_data.npz
-│   │   ├── chimps_397_downgoing_data.npz
-│   │   ├── erau_signal_data.npz
-│   │   ├── erpa_hi_data.npz
-│   │   ├── erpa_temp_data.npz
-│   │   ├── exb_components_data.npz
-│   │   ├── footpoint_brightness_data.npz
-│   │   ├── pip3_0_voff_data.npz
+│   │   ├── b_e_field_components_data.h5
+│   │   ├── chimps_397_downgoing_data.h5
+│   │   ├── erau_signal_data.h5
+│   │   ├── erpa_hi_data.h5
+│   │   ├── erpa_temp_data.h5
+│   │   ├── exb_components_data.h5
+│   │   ├── footpoint_brightness_data.h5
+│   │   ├── pip3_0_voff_data.h5
 │   │   ├── tg_to_maglat.csv
-│   │   └── trajectory_keogram_green_20260210_101900_102848.npz
+│   │   └── trajectory_keogram_green_20260210_101900_102848.h5
 │   └── source_data/
+│       └── brightness_vs_time_20260210_101900_102848_step0p05.h5
 └── scripts/
     ├── build_app_data/
     │   ├── b_e_field.py
@@ -33,8 +34,8 @@ GNEISS_stackplot/
     └── requirements.txt
 ```
 
-The plotting scripts create the NPZ data products. The instructions below
-assume those NPZ files already exist and are ready to use.
+The build scripts create full-resolution HDF5 data products. The instructions
+below assume those HDF5 files already exist.
 
 ## Run the Stackplot App
 
@@ -56,7 +57,7 @@ The app includes:
 - CHIMPS downgoing electron energy-time spectrogram
 - CHIMPS downgoing electron total counts
 - PIP3 low-gain Voff for rockets 397 and 398
-- (ExB)/B^2 east, north, and up
+- (ExB)/B^2 east, north, and up (hidden as of 7/20/26)
 - B north and E east
 - B east and E north
 - Footpoint brightness at 110 km
@@ -67,22 +68,19 @@ panels between time since TG and magnetic latitude.
 
 ## Required Data
 
-`scripts/stackplot_app.py` expects the prepared NPZ files and
+`scripts/stackplot_app.py` expects the prepared HDF5 files and
 `tg_to_maglat.csv` listed above under `data/app_data/`.
 
 `data/source_data/` contains raw and intermediate inputs used to regenerate the
-prepared NPZ files. The stackplot app does not read that folder directly.
+prepared HDF5 files. The stackplot app does not read that folder directly.
 
 ## Data Processing Notes
 
-The stackplot is not a raw-sample viewer. The prepared NPZ files and the app
-apply a few display-oriented transformations:
+The prepared HDF5 files retain the source resolution. The app applies a few
+display-oriented transformations:
 
-- B/E field, ERPA hi, ERPA temperature, and ERAU PIP line series are capped at a
-  maximum `0.05 s` TG-time resolution when the NPZ files are exported. If the
-  source cadence is finer than that, values are linearly interpolated onto a
-  `0.05 s` grid; coarser source series are left at their native finite sample
-  times.
+- B/E field, ExB, ERPA hi, ERPA temperature, and ERAU PIP series are written to
+  HDF5 at their full processed source cadence without export-time downsampling.
 - ERAU PIP is additionally sorted by TG time, duplicate times are reduced to the
   first sample, the configured TG offset is applied, and a centered 100-sample
   rolling median is applied before export.
@@ -93,14 +91,14 @@ apply a few display-oriented transformations:
 - PIP3 low-gain Voff uses the positive time samples from the sigmoid-fit
   exports to match the source notebook, and stores one separate series each for
   rockets 397 and 398 without smoothing or downsampling.
-- In the Dash app, line panels are linearly interpolated onto the shared
-  `0.05 s` TG grid for aligned display. Trajectory keogram image rows are
-  linearly interpolated onto a shared `0.3 s` display grid. The CHIMPS
-  spectrogram is also interpolated onto that `0.3 s` display grid.
-- Magnetic latitude is not an independent source measurement in the NPZ series;
+- The Dash app does not interpolate panels onto a shared time grid. Lower-rate
+  panels use their stored HDF5 timestamps directly. Full-view B/E and ERAU
+  traces use an extrema-preserving display aggregate; zooming reads only the
+  visible HDF5 interval and returns every native sample once the interval fits
+  within the display point limit.
+- Magnetic latitude is not an independent source measurement in the HDF5 series;
   it is linearly interpolated from `data/app_data/tg_to_maglat.csv` for the
   selected rocket and TG time samples.
 - Keogram brightness is displayed as `log10` brightness with clipping at the
-  stored brightness limits. Footpoint brightness values are read from the
-  prepared brightness CSV and are only interpolated by the app onto the shared
-  line-panel grid for display.
+  stored brightness limits. Footpoint brightness retains the finite timestamps
+  from the prepared brightness CSV.

@@ -3,32 +3,37 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
-from dash import Dash, Input, Output, dcc, html
+from dash import Dash, Input, Output, ctx, dcc, html
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+
+try:
+    from .build_app_data.hdf5_io import read_hdf5
+except ImportError:
+    from build_app_data.hdf5_io import read_hdf5
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
-B_E_NPZ = APP_DATA_DIR / "b_e_field_components_data.npz"
-ERAU_NPZ = APP_DATA_DIR / "erau_signal_data.npz"
-ERPA_HI_NPZ = APP_DATA_DIR / "erpa_hi_data.npz"
-ERPA_TEMP_NPZ = APP_DATA_DIR / "erpa_temp_data.npz"
-CHIMPS_NPZ = APP_DATA_DIR / "chimps_397_downgoing_data.npz"
-PIP_VOFF_NPZ = APP_DATA_DIR / "pip3_0_voff_data.npz"
-EXB_NPZ = APP_DATA_DIR / "exb_components_data.npz"
-KEOGRAM_NPZ = APP_DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.npz"
-FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
+B_E_H5 = APP_DATA_DIR / "b_e_field_components_data.h5"
+ERAU_H5 = APP_DATA_DIR / "erau_signal_data.h5"
+ERPA_HI_H5 = APP_DATA_DIR / "erpa_hi_data.h5"
+ERPA_TEMP_H5 = APP_DATA_DIR / "erpa_temp_data.h5"
+CHIMPS_H5 = APP_DATA_DIR / "chimps_397_downgoing_data.h5"
+PIP_VOFF_H5 = APP_DATA_DIR / "pip3_0_voff_data.h5"
+EXB_H5 = APP_DATA_DIR / "exb_components_data.h5"
+KEOGRAM_H5 = APP_DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.h5"
+FOOTPOINT_BRIGHTNESS_H5 = APP_DATA_DIR / "footpoint_brightness_data.h5"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 TG_X_LIMITS_S = (0.0, 588.0)
-TIME_STEP_S = 0.05
-HEATMAP_TIME_STEP_S = 0.3
 PANEL_HEIGHT_PX = 260
 PANEL_GAP_PX = 42
 PLOT_VERTICAL_MARGIN_PX = 55
+MAX_DISPLAY_POINTS_PER_TRACE = 4000
 ROCKET_COLORS = {
     "397": "tab:blue",
     "398": "tab:orange",
@@ -44,64 +49,8 @@ def plotly_color(color: str) -> str:
 
 
 def browser_values(values):
-    """Convert NumPy arrays to browser-safe JSON lists."""
-    return np.asarray(values).tolist()
-
-
-COMMON_TIME_S = np.round(
-    np.arange(TG_X_LIMITS_S[0], TG_X_LIMITS_S[1] + TIME_STEP_S / 2, TIME_STEP_S),
-    decimals=2,
-)
-HEATMAP_TIME_S = np.round(
-    np.arange(
-        TG_X_LIMITS_S[0],
-        TG_X_LIMITS_S[1] + HEATMAP_TIME_STEP_S / 2,
-        HEATMAP_TIME_STEP_S,
-    ),
-    decimals=2,
-)
-
-
-def common_time_subset(time_since_tg_s):
-    """Return exact 0.05 s TG samples covered by an input time array."""
-    finite_time = np.asarray(time_since_tg_s)[np.isfinite(time_since_tg_s)]
-    if len(finite_time) == 0:
-        return np.array([], dtype=float)
-
-    return COMMON_TIME_S[
-        (COMMON_TIME_S >= np.min(finite_time))
-        & (COMMON_TIME_S <= np.max(finite_time))
-    ]
-
-
-def resample_series_to_common_time(time_since_tg_s, values):
-    """Interpolate one series onto the shared 0.05 s TG grid."""
-    time_since_tg_s = np.asarray(time_since_tg_s)
-    values = np.asarray(values)
-    valid = np.isfinite(time_since_tg_s) & np.isfinite(values)
-    source_time_s = time_since_tg_s[valid]
-    source_values = values[valid]
-    target_time_s = common_time_subset(source_time_s)
-
-    if len(source_time_s) == 0:
-        return target_time_s, np.array([], dtype=float)
-
-    return target_time_s, np.interp(target_time_s, source_time_s, source_values)
-
-
-def resample_matrix_to_common_time(time_since_tg_s, values):
-    """Interpolate each matrix row onto the shared 0.3 s heatmap grid."""
-    time_since_tg_s = np.asarray(time_since_tg_s)
-    values = np.asarray(values)
-    finite_time = time_since_tg_s[np.isfinite(time_since_tg_s)]
-    target_time_s = HEATMAP_TIME_S[
-        (HEATMAP_TIME_S >= np.min(finite_time))
-        & (HEATMAP_TIME_S <= np.max(finite_time))
-    ]
-    resampled = np.vstack(
-        [np.interp(target_time_s, time_since_tg_s, row) for row in values]
-    )
-    return target_time_s, resampled
+    """Keep arrays eligible for Plotly's compact typed-array transport."""
+    return np.asarray(values)
 
 
 def load_maglat_mappings() -> dict:
@@ -131,6 +80,124 @@ def interpolate_maglat(time_since_tg_s, rocket: str):
         left=np.nan,
         right=np.nan,
     )
+
+
+def read_json_attributes(path: str | Path, *names: str):
+    """Read selected JSON-encoded HDF5 attributes without loading datasets."""
+    with h5py.File(path, "r") as h5:
+        return tuple(json.loads(h5.attrs[name]) for name in names)
+
+
+def hdf5_searchsorted(dataset, value: float, side: str = "left") -> int:
+    """Binary-search a sorted one-dimensional HDF5 dataset without loading it."""
+    low = 0
+    high = len(dataset)
+    while low < high:
+        middle = (low + high) // 2
+        middle_value = dataset[middle]
+        move_right = middle_value < value or (side == "right" and middle_value == value)
+        if move_right:
+            low = middle + 1
+        else:
+            high = middle
+    return low
+
+
+def extrema_indices(values, max_points: int = MAX_DISPLAY_POINTS_PER_TRACE):
+    """Return ordered per-bin extrema indices for a display-sized line trace."""
+    values = np.asarray(values)
+    point_count = len(values)
+    if point_count <= max_points:
+        return np.arange(point_count)
+
+    bin_count = max(1, max_points // 2)
+    edges = np.linspace(0, point_count, bin_count + 1, dtype=int)
+    selected = []
+    for start, stop in zip(edges[:-1], edges[1:]):
+        segment = values[start:stop]
+        finite = np.flatnonzero(np.isfinite(segment))
+        if len(finite) == 0:
+            continue
+        finite_values = segment[finite]
+        low = start + finite[np.argmin(finite_values)]
+        high = start + finite[np.argmax(finite_values)]
+        selected.extend(sorted({low, high}))
+    return np.asarray(selected, dtype=int)
+
+
+def materialize_hdf5_trace(
+    trace: dict,
+    use_maglat: bool,
+    visible_x_range: tuple[float, float] | None,
+) -> dict:
+    """Read and extrema-reduce the visible part of one lazy HDF5 trace."""
+    with h5py.File(trace["hdf5_path"], "r") as h5:
+        time_dataset = h5[trace["time_key"]]
+        maglat_dataset = h5[trace["maglat_key"]]
+        value_dataset = h5[trace["value_key"]]
+
+        if not use_maglat:
+            x_min, x_max = visible_x_range or TG_X_LIMITS_S
+            start = max(0, hdf5_searchsorted(time_dataset, x_min) - 1)
+            stop = min(len(time_dataset), hdf5_searchsorted(time_dataset, x_max, "right") + 1)
+            time_since_tg_s = time_dataset[start:stop]
+            magnetic_lat_deg = maglat_dataset[start:stop]
+            values = value_dataset[start:stop]
+        else:
+            time_since_tg_s = time_dataset[:]
+            magnetic_lat_deg = maglat_dataset[:]
+            values = value_dataset[:]
+            if visible_x_range is not None:
+                x_min, x_max = sorted(visible_x_range)
+                visible = (
+                    np.isfinite(magnetic_lat_deg)
+                    & (magnetic_lat_deg >= x_min)
+                    & (magnetic_lat_deg <= x_max)
+                )
+                time_since_tg_s = time_since_tg_s[visible]
+                magnetic_lat_deg = magnetic_lat_deg[visible]
+                values = values[visible]
+
+    x_values = magnetic_lat_deg if use_maglat else time_since_tg_s
+    valid = np.isfinite(x_values) & np.isfinite(values)
+    time_since_tg_s = time_since_tg_s[valid]
+    magnetic_lat_deg = magnetic_lat_deg[valid]
+    values = values[valid]
+    selected = extrema_indices(values)
+
+    materialized = dict(trace)
+    materialized.update(
+        {
+            "time_since_tg_s": time_since_tg_s[selected],
+            "magnetic_lat_deg": magnetic_lat_deg[selected],
+            "y": values[selected],
+        }
+    )
+    return materialized
+
+
+def materialize_trace(trace, use_maglat, visible_x_range):
+    if trace.get("lazy_hdf5"):
+        return materialize_hdf5_trace(trace, use_maglat, visible_x_range)
+    return trace
+
+
+def visible_range_from_relayout(relayout_data) -> tuple[float, float] | None:
+    """Extract the shared x-axis range emitted by a Plotly zoom interaction."""
+    if not relayout_data:
+        return None
+    if any(key.endswith(".autorange") and value for key, value in relayout_data.items()):
+        return None
+
+    for prefix in ("xaxis", *(f"xaxis{index}" for index in range(2, 30))):
+        range_key = f"{prefix}.range"
+        if range_key in relayout_data and len(relayout_data[range_key]) == 2:
+            return tuple(sorted(float(value) for value in relayout_data[range_key]))
+        low_key = f"{prefix}.range[0]"
+        high_key = f"{prefix}.range[1]"
+        if low_key in relayout_data and high_key in relayout_data:
+            return tuple(sorted((float(relayout_data[low_key]), float(relayout_data[high_key]))))
+    return None
 
 
 def subplot_colorbar(row: int, row_count: int, title: str) -> dict:
@@ -239,9 +306,11 @@ def panel_title(panel: dict, show_source_subtitle: bool = True) -> str:
 
 
 def load_b_e_panels() -> dict:
-    npz = np.load(B_E_NPZ, allow_pickle=True)
-    metadata = json.loads(str(npz["metadata_json"]))
-    provenance = json.loads(str(npz["provenance_json"]))
+    metadata, provenance = read_json_attributes(
+        B_E_H5,
+        "metadata_json",
+        "provenance_json",
+    )
     source_files = source_file_names(
         list(provenance["b_field_files"].values())
         + list(provenance["e_field_files"].values())
@@ -275,16 +344,13 @@ def load_b_e_panels() -> dict:
         else:
             panels[panel_id]["left_y_title"] = f"{series['component']} ({series['units']})"
 
-        time_since_tg_s, y = resample_series_to_common_time(
-            npz[series["time_key"]],
-            npz[series["value_key"]],
-        )
-        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, series["rocket"])
         panels[panel_id]["traces"].append(
             {
-                "time_since_tg_s": time_since_tg_s,
-                "magnetic_lat_deg": magnetic_lat_deg,
-                "y": y,
+                "lazy_hdf5": True,
+                "hdf5_path": B_E_H5,
+                "time_key": series["time_key"],
+                "maglat_key": series["maglat_key"],
+                "value_key": series["value_key"],
                 "name": f"{series['rocket']} {series['component']}",
                 "color": plotly_color(series["color"]),
                 "dash": "dash" if series["line_style"] == "dashed" else "solid",
@@ -297,8 +363,8 @@ def load_b_e_panels() -> dict:
 
 
 def load_footpoint_brightness_panel(altitude_km: int = 110) -> dict:
-    data = np.load(FOOTPOINT_BRIGHTNESS_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    data = read_hdf5(FOOTPOINT_BRIGHTNESS_H5)
+    metadata = json.loads(data["metadata_json"])
     all_time_since_tg_s = data["time_since_TG_s"]
     traces = []
 
@@ -306,10 +372,8 @@ def load_footpoint_brightness_panel(altitude_km: int = 110) -> dict:
         key = f"{rocket}_{altitude_km}_brightness"
         brightness = data[key]
         valid = np.isfinite(brightness)
-        time_since_tg_s, y = resample_series_to_common_time(
-            all_time_since_tg_s[valid],
-            brightness[valid],
-        )
+        time_since_tg_s = all_time_since_tg_s[valid]
+        y = brightness[valid]
         magnetic_lat_deg = interpolate_maglat(time_since_tg_s, rocket)
         traces.append(
             {
@@ -327,7 +391,7 @@ def load_footpoint_brightness_panel(altitude_km: int = 110) -> dict:
 
     return {
         "label": f"Footpoint brightness {altitude_km} km",
-        "left_y_title": "Brightness",
+        "left_y_title": "Brightness (Rayleighs)",
         "right_y_title": None,
         "left_y_type": "log",
         "source_files": source_file_names(metadata["source_data_file"]),
@@ -336,36 +400,24 @@ def load_footpoint_brightness_panel(altitude_km: int = 110) -> dict:
 
 
 def load_erau_panel() -> dict:
-    data = np.load(ERAU_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    (metadata,) = read_json_attributes(ERAU_H5, "metadata_json")
     traces = []
     units = metadata["series"][0]["units"]
 
     for series in metadata["series"]:
-        source_time_since_tg_s = data[series["time_key"]]
-        time_since_tg_s, signal = resample_series_to_common_time(
-            source_time_since_tg_s,
-            data[series["value_key"]],
-        )
-        magnetic_lat_deg = np.interp(
-            time_since_tg_s,
-            source_time_since_tg_s,
-            data[series["maglat_key"]],
-            left=np.nan,
-            right=np.nan,
-        )
         rocket = series["label"][:3]
         traces.append(
             {
-                "time_since_tg_s": time_since_tg_s,
-                "magnetic_lat_deg": magnetic_lat_deg,
-                "y": signal,
+                "lazy_hdf5": True,
+                "hdf5_path": ERAU_H5,
+                "time_key": series["time_key"],
+                "maglat_key": series["maglat_key"],
+                "value_key": series["value_key"],
                 "name": series["label"],
                 "color": plotly_color(ROCKET_COLORS[rocket]),
                 "dash": "solid",
                 "secondary_y": False,
                 "type": "scatter",
-                "render_mode": "svg",
             }
         )
 
@@ -380,17 +432,15 @@ def load_erau_panel() -> dict:
 
 
 def load_erpa_hi_panel() -> dict:
-    data = np.load(ERPA_HI_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    data = read_hdf5(ERPA_HI_H5)
+    metadata = json.loads(data["metadata_json"])
     traces = []
     units = metadata["series"][0]["units"]
 
     for series in metadata["series"]:
-        time_since_tg_s, hi = resample_series_to_common_time(
-            data[series["time_key"]],
-            data[series["value_key"]],
-        )
-        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, series["rocket"])
+        time_since_tg_s = data[series["time_key"]]
+        hi = data[series["value_key"]]
+        magnetic_lat_deg = data[series["maglat_key"]]
         traces.append(
             {
                 "time_since_tg_s": time_since_tg_s,
@@ -416,17 +466,15 @@ def load_erpa_hi_panel() -> dict:
 
 
 def load_erpa_temp_panel() -> dict:
-    data = np.load(ERPA_TEMP_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    data = read_hdf5(ERPA_TEMP_H5)
+    metadata = json.loads(data["metadata_json"])
     traces = []
     units = metadata["series"][0]["units"]
 
     for series in metadata["series"]:
-        time_since_tg_s, temp = resample_series_to_common_time(
-            data[series["time_key"]],
-            data[series["value_key"]],
-        )
-        magnetic_lat_deg = interpolate_maglat(time_since_tg_s, series["rocket"])
+        time_since_tg_s = data[series["time_key"]]
+        temp = data[series["value_key"]]
+        magnetic_lat_deg = data[series["maglat_key"]]
         traces.append(
             {
                 "time_since_tg_s": time_since_tg_s,
@@ -452,19 +500,15 @@ def load_erpa_temp_panel() -> dict:
 
 
 def load_chimps_panels() -> dict:
-    data = np.load(CHIMPS_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    data = read_hdf5(CHIMPS_H5)
+    metadata = json.loads(data["metadata_json"])
     time_since_tg_s = data["time_since_TG_s"]
     log10_energy_eV = data["log10_energy_eV"]
     log10_counts = data["log10_counts"]
-    total_counts_time_since_tg_s, total_counts = resample_series_to_common_time(
-        time_since_tg_s,
-        data["total_counts"],
-    )
-    heatmap_time_since_tg_s, heatmap_log10_counts = resample_matrix_to_common_time(
-        time_since_tg_s,
-        log10_counts,
-    )
+    total_counts_time_since_tg_s = time_since_tg_s
+    total_counts = data["total_counts"]
+    heatmap_time_since_tg_s = time_since_tg_s
+    heatmap_log10_counts = log10_counts
     heatmap_maglat_deg = interpolate_maglat(
         heatmap_time_since_tg_s,
         metadata["rocket"],
@@ -526,8 +570,8 @@ def load_chimps_panels() -> dict:
 
 
 def load_pip_voff_panels() -> dict:
-    data = np.load(PIP_VOFF_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    data = read_hdf5(PIP_VOFF_H5)
+    metadata = json.loads(data["metadata_json"])
     panels = {}
 
     for series in metadata["series"]:
@@ -564,8 +608,8 @@ def load_pip_voff_panels() -> dict:
 
 
 def load_exb_panels() -> dict:
-    data = np.load(EXB_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    data = read_hdf5(EXB_H5)
+    metadata = json.loads(data["metadata_json"])
     panels = {}
     component_labels = {
         "east": "(ExB)/B^2 east",
@@ -576,6 +620,8 @@ def load_exb_panels() -> dict:
     for series in metadata["series"]:
         component = series["component"]
         panel_id = f"exb_{component}"
+        time_since_tg_s = data[series["time_key"]]
+        values = data[series["value_key"]]
         panels.setdefault(
             panel_id,
             {
@@ -591,9 +637,9 @@ def load_exb_panels() -> dict:
         panels[panel_id]["traces"].append(
             {
                 "type": "scatter",
-                "time_since_tg_s": data[series["time_key"]],
+                "time_since_tg_s": time_since_tg_s,
                 "magnetic_lat_deg": data[series["maglat_key"]],
-                "y": data[series["value_key"]],
+                "y": values,
                 "name": series["label"],
                 "color": plotly_color(series["color"]),
                 "dash": "solid",
@@ -606,11 +652,14 @@ def load_exb_panels() -> dict:
 
 
 def load_keogram_panels() -> dict:
-    data = np.load(KEOGRAM_NPZ)
-    metadata = json.loads(str(data["metadata_json"]))
+    data = read_hdf5(KEOGRAM_H5)
+    metadata = json.loads(data["metadata_json"])
     time_since_tg_s = data["time_since_tg_s"]
     vmin, vmax = data["brightness_limits"]
-    color = str(data["color"].item()).capitalize()
+    color = str(data["color"]).capitalize()
+    brightness_units = str(
+        data.get("brightness_units", metadata.get("brightness_units", "intensity"))
+    )
     panels = {}
 
     for tag in [str(tag) for tag in data["tags"]]:
@@ -620,10 +669,8 @@ def load_keogram_panels() -> dict:
         y_min, y_max = data[f"y_limits_{tag}_s"]
 
         log_brightness = np.log10(np.clip(brightness, max(float(vmin), 1e-6), None))
-        heatmap_time_since_tg_s, heatmap_z = resample_matrix_to_common_time(
-            time_since_tg_s,
-            log_brightness,
-        )
+        heatmap_time_since_tg_s = time_since_tg_s
+        heatmap_z = log_brightness
         heatmap_maglat_deg = interpolate_maglat(heatmap_time_since_tg_s, tag)
         valid_heatmap_maglat = np.isfinite(heatmap_maglat_deg)
         valid_line = (
@@ -631,10 +678,8 @@ def load_keogram_panels() -> dict:
             & (trajectory_line_s >= y_min)
             & (trajectory_line_s <= y_max)
         )
-        trajectory_time_since_tg_s, trajectory_line_s = resample_series_to_common_time(
-            time_since_tg_s[valid_line],
-            trajectory_line_s[valid_line],
-        )
+        trajectory_time_since_tg_s = time_since_tg_s[valid_line]
+        trajectory_line_s = trajectory_line_s[valid_line]
         trajectory_maglat_deg = interpolate_maglat(trajectory_time_since_tg_s, tag)
 
         panels[f"keogram_{tag}"] = {
@@ -655,7 +700,7 @@ def load_keogram_panels() -> dict:
                     "colorscale": "Greens",
                     "zmin": float(np.log10(max(float(vmin), 1e-6))),
                     "zmax": float(np.log10(float(vmax))),
-                    "colorbar_title": f"log {color} intensity",
+                    "colorbar_title": f"log10 brightness ({brightness_units})",
                     "secondary_y": False,
                 },
                 {
@@ -682,7 +727,6 @@ def load_panels() -> dict:
     panels["erpa_temp"] = load_erpa_temp_panel()
     panels.update(load_chimps_panels())
     panels.update(load_pip_voff_panels())
-    panels.update(load_exb_panels())
     panels.update(load_b_e_panels())
     panels["footpoint_brightness"] = load_footpoint_brightness_panel(altitude_km=110)
     panels.update(load_keogram_panels())
@@ -698,9 +742,6 @@ PANEL_ORDER = [
     "erau",
     "erpa_temp",
     "erpa_hi",
-    "exb_east",
-    "exb_north",
-    "exb_up",
     "b_north_e_east",
     "b_east_e_north",
     "footpoint_brightness",
@@ -742,6 +783,7 @@ def build_stackplot(
     selected_panel_ids: list[str],
     x_axis_mode: str = "time_since_TG",
     show_source_subtitles: bool = False,
+    visible_x_range: tuple[float, float] | None = None,
 ) -> go.Figure:
     selected_panel_ids = [
         panel_id for panel_id in PANEL_ORDER if panel_id in selected_panel_ids
@@ -779,7 +821,8 @@ def build_stackplot(
         panel = PANEL_DEFS[panel_id]
         legend_items = []
 
-        for trace in panel["traces"]:
+        for trace_spec in panel["traces"]:
+            trace = materialize_trace(trace_spec, use_maglat, visible_x_range)
             if trace["type"] == "heatmap":
                 fig.add_trace(
                     go.Heatmap(
@@ -874,7 +917,11 @@ def build_stackplot(
             "Magnetic latitude (deg)" if use_maglat else "Time since TG (s)"
         )
         fig.update_xaxes(
-            range=None if use_maglat else list(TG_X_LIMITS_S),
+            range=(
+                list(visible_x_range)
+                if visible_x_range is not None
+                else (None if use_maglat else list(TG_X_LIMITS_S))
+            ),
             title_text=x_axis_title if is_bottom_row else None,
             title_font={"size": 15},
             tickfont={"size": 15},
@@ -902,6 +949,7 @@ def build_stackplot(
         },
         hovermode="x unified",
         showlegend=False,
+        uirevision=x_axis_mode,
     )
 
     return fig
@@ -989,14 +1037,26 @@ app.layout = html.Div(
     Input("panel-selector", "value"),
     Input("x-axis-mode", "value"),
     Input("source-subtitle-toggle", "value"),
+    Input("stackplot", "relayoutData"),
     prevent_initial_call=True,
 )
-def update_stackplot(selected_panel_ids, x_axis_mode, source_subtitle_toggle):
+def update_stackplot(
+    selected_panel_ids,
+    x_axis_mode,
+    source_subtitle_toggle,
+    relayout_data,
+):
     show_source_subtitles = "show" in (source_subtitle_toggle or [])
+    visible_x_range = (
+        None
+        if ctx.triggered_id == "x-axis-mode"
+        else visible_range_from_relayout(relayout_data)
+    )
     return build_stackplot(
         selected_panel_ids or [],
         x_axis_mode,
         show_source_subtitles,
+        visible_x_range,
     )
 
 

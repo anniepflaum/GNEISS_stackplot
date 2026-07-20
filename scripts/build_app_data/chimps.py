@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
+
+try:
+    from .hdf5_io import write_hdf5
+except ImportError:
+    from hdf5_io import write_hdf5
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -13,7 +17,7 @@ DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 SOURCE_DATA_DIR = DATA_DIR / "source_data"
 CHIMPS_MAT = SOURCE_DATA_DIR / "GNEISS_397_CHIMPS_Down_V2.mat"
-CHIMPS_NPZ = APP_DATA_DIR / "chimps_397_downgoing_data.npz"
+CHIMPS_H5 = APP_DATA_DIR / "chimps_397_downgoing_data.h5"
 CHIMPS_SPECTROGRAM_JPG = SOURCE_DATA_DIR / "CHIMPS_GNEISS_Downgoing2_recreated.jpg"
 CHIMPS_LINEPLOT_JPG = SOURCE_DATA_DIR / "GNEISS_CHIMPS_down_lineplot_recreated.jpg"
 TIME_VARIABLE = "Final_Time"
@@ -95,8 +99,8 @@ def time_edges(time_s):
     return np.concatenate([[first_edge], midpoints, [last_edge]])
 
 
-def export_chimps_npz(
-    output_path: str | Path = CHIMPS_NPZ,
+def export_chimps_hdf5(
+    output_path: str | Path = CHIMPS_H5,
     mat_path: str | Path = CHIMPS_MAT,
 ) -> Path:
     """Export CHIMPS 397 downgoing electron arrays for the stackplot app."""
@@ -118,12 +122,11 @@ def export_chimps_npz(
             "log10_counts computed as log10(max(counts, 1))"
         ),
     }
-    np.savez_compressed(
+    return write_hdf5(
         output_path,
-        **chimps,
-        metadata_json=np.array(json.dumps(metadata)),
+        chimps,
+        metadata_json=metadata,
     )
-    return output_path
 
 
 def plot_chimps_spectrogram(
@@ -204,6 +207,6 @@ def plot_chimps_lineplot(
 
 
 if __name__ == "__main__":
-    export_chimps_npz()
+    export_chimps_hdf5()
     plot_chimps_spectrogram(show=True)
     plot_chimps_lineplot(show=True)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -9,16 +8,16 @@ import pandas as pd
 from scipy.io import loadmat
 
 try:
-    from .resampling import TIME_STEP_S, reduce_series_resolution
+    from .hdf5_io import write_hdf5
 except ImportError:
-    from resampling import TIME_STEP_S, reduce_series_resolution
+    from hdf5_io import write_hdf5
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 ERAU_MAT = DATA_DIR / "source_data" / "ERAU_Raw_signal_export.mat"
-ERAU_NPZ = APP_DATA_DIR / "erau_signal_data.npz"
+ERAU_H5 = APP_DATA_DIR / "erau_signal_data.h5"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 SIGNAL_VARIABLE = "Signal_397_398"
 TIME_VARIABLE = "Time_TG_TG398"
@@ -131,8 +130,8 @@ def interpolate_maglat(time_since_tg_s, rocket: str, mappings=None):
     )
 
 
-def export_erau_npz(
-    output_path: str | Path = ERAU_NPZ,
+def export_erau_hdf5(
+    output_path: str | Path = ERAU_H5,
     mat_path: str | Path = ERAU_MAT,
 ):
     """Export median-filtered ERAU signal arrays with source-file metadata."""
@@ -144,7 +143,6 @@ def export_erau_npz(
 
     for label, (time_since_tg_s, signal) in processed_erau_signals(mat_path).items():
         rocket = label[:-2]
-        time_since_tg_s, signal = reduce_series_resolution(time_since_tg_s, signal)
         time_key = f"{label}_time_since_TG_s"
         maglat_key = f"{label}_magnetic_lat_deg"
         value_key = f"{label}_signal"
@@ -172,16 +170,14 @@ def export_erau_npz(
         "maglat_mapping_file": TG_TO_MAGLAT_CSV.name,
         "median_window_samples": MEDIAN_WINDOW_SAMPLES,
         "t0_tg_offset_s": T0_TG_OFFSET_S,
-        "maximum_time_resolution_s": TIME_STEP_S,
+        "resolution": "full source resolution",
         "series": series,
     }
-    np.savez_compressed(
+    return write_hdf5(
         output_path,
-        **arrays,
-        metadata_json=np.array(json.dumps(metadata)),
+        arrays,
+        metadata_json=metadata,
     )
-
-    return output_path
 
 
 def plot_erau(
@@ -213,5 +209,5 @@ def plot_erau(
 
 
 if __name__ == "__main__":
-    export_erau_npz()
+    export_erau_hdf5()
     plot_erau(show=True)

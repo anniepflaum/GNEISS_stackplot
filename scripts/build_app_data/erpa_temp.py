@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from .resampling import TIME_STEP_S, reduce_series_resolution
+    from .hdf5_io import write_hdf5
 except ImportError:
-    from resampling import TIME_STEP_S, reduce_series_resolution
+    from hdf5_io import write_hdf5
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -20,7 +19,7 @@ ERPA_HI_CSVS = {
     "397": SOURCE_DATA_DIR / "fwd397temp.csv",
     "398": SOURCE_DATA_DIR / "fwd398temp.csv",
 }
-ERPA_HI_NPZ = APP_DATA_DIR / "erpa_temp_data.npz"
+ERPA_TEMP_H5 = APP_DATA_DIR / "erpa_temp_data.h5"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 T0_TG_OFFSET_S = {
     "397": 0.0,
@@ -85,12 +84,10 @@ def interpolate_maglat(time_since_tg_s, rocket: str, mappings=None):
     )
 
 
-def export_erpa_temp_npz(
-    output_path: str | Path = ERPA_HI_NPZ,
+def export_erpa_temp_hdf5(
+    output_path: str | Path = ERPA_TEMP_H5,
 ):
-    """Export TG-aligned ERPA temp arrays with source-file metadata."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    """Export full-resolution TG-aligned ERPA temp arrays and metadata."""
     arrays = {}
     series = []
     maglat_mappings = load_maglat_mapping()
@@ -100,7 +97,6 @@ def export_erpa_temp_npz(
         maglat_key = f"{rocket}_magnetic_lat_deg"
         value_key = f"{rocket}_temp"
         time_since_tg_s, temp = load_erpa_temp(csv_path, rocket)
-        time_since_tg_s, temp = reduce_series_resolution(time_since_tg_s, temp)
         arrays[time_key] = time_since_tg_s
         arrays[maglat_key] = interpolate_maglat(
             time_since_tg_s,
@@ -125,16 +121,14 @@ def export_erpa_temp_npz(
             rocket: path.name for rocket, path in ERPA_HI_CSVS.items()
         },
         "maglat_mapping_file": TG_TO_MAGLAT_CSV.name,
-        "maximum_time_resolution_s": TIME_STEP_S,
+        "resolution": "full source resolution",
         "series": series,
     }
-    np.savez_compressed(
+    return write_hdf5(
         output_path,
-        **arrays,
-        metadata_json=np.array(json.dumps(metadata)),
+        arrays,
+        metadata_json=metadata,
     )
-
-    return output_path
 
 
 def plot_erpa_temp(
@@ -176,5 +170,5 @@ def plot_erpa_temp(
 
 
 if __name__ == "__main__":
-    export_erpa_temp_npz()
+    export_erpa_temp_hdf5()
     plot_erpa_temp(show=True)

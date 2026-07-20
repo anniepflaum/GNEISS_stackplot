@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+try:
+    from .hdf5_io import write_hdf5
+except ImportError:
+    from hdf5_io import write_hdf5
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 SOURCE_DATA_DIR = DATA_DIR / "source_data"
-PIP_VOFF_NPZ = APP_DATA_DIR / "pip3_0_voff_data.npz"
+PIP_VOFF_H5 = APP_DATA_DIR / "pip3_0_voff_data.h5"
 PIP_VOFF_PLOT_PNG = SOURCE_DATA_DIR / "pip3_0_voff_vs_time.png"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 ROCKETS = ("397", "398")
@@ -86,8 +90,8 @@ def interpolate_maglat(time_since_tg_s, rocket: str, mappings=None):
     )
 
 
-def export_pip_voff_npz(
-    output_path: str | Path = PIP_VOFF_NPZ,
+def export_pip_voff_hdf5(
+    output_path: str | Path = PIP_VOFF_H5,
 ) -> Path:
     """Export low-gain PIP3 Voff data with magnetic latitude for the app."""
     output_path = Path(output_path)
@@ -138,12 +142,11 @@ def export_pip_voff_npz(
         ),
         "series": series,
     }
-    np.savez_compressed(
+    return write_hdf5(
         output_path,
-        **arrays,
-        metadata_json=np.array(json.dumps(metadata)),
+        arrays,
+        metadata_json=metadata,
     )
-    return output_path
 
 
 def plot_pip_voff(
@@ -176,5 +179,5 @@ def plot_pip_voff(
 
 
 if __name__ == "__main__":
-    export_pip_voff_npz()
+    export_pip_voff_hdf5()
     plot_pip_voff(show=True)

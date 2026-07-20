@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from .resampling import TIME_STEP_S, reduce_series_resolution
+    from .hdf5_io import write_hdf5
 except ImportError:
-    from resampling import TIME_STEP_S, reduce_series_resolution
+    from hdf5_io import write_hdf5
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -22,14 +22,14 @@ B_FIELD_CSVS = {
     "398": SOURCE_DATA_DIR / "b_despun_398.csv",
 }
 E_FIELD_CSVS = {
-    "397": SOURCE_DATA_DIR / "e_despun_subtracted_v1_397.csv",
-    "398": SOURCE_DATA_DIR / "e_despun_subtracted_v1_398.csv",
+    "397": SOURCE_DATA_DIR / "despin_v2_397.csv",
+    "398": SOURCE_DATA_DIR / "despin_v2_398.csv",
 }
-BRIGHTNESS_CSV = (
+BRIGHTNESS_H5 = (
     SOURCE_DATA_DIR
-    / "brightness_vs_time_20260210_101900_102848_step0p05.csv"
+    / "brightness_vs_time_20260210_101900_102848_step0p05.h5"
 )
-B_E_STACKPLOT_DATA_NPZ = APP_DATA_DIR / "b_e_field_components_data.npz"
+B_E_STACKPLOT_DATA_H5 = APP_DATA_DIR / "b_e_field_components_data.h5"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 B_E_TG_PLOT_PNG = SOURCE_DATA_DIR / "b_e_field_components_time_since_TG.png"
 B_E_MAGLAT_PLOT_PNG = SOURCE_DATA_DIR / "b_e_field_components_maglat.png"
@@ -149,7 +149,7 @@ def put_left_axis_above_twin(left_ax, right_ax):
 
 
 def b_e_series_key(panel: str, rocket: str, component: str, suffix: str):
-    """Build a stable npz key for one plotted data series."""
+    """Build a stable HDF5 dataset key for one plotted data series."""
     return f"{panel}_{rocket}_{component}_{suffix}"
 
 
@@ -171,7 +171,6 @@ def build_b_e_field_plot_data():
                 component_column=spec["component_column"],
                 rocket=rocket,
             )
-            time_s, values = reduce_series_resolution(time_s, values)
             key_prefix = b_e_series_key(
                 spec["panel"],
                 rocket,
@@ -210,28 +209,23 @@ def build_b_e_field_plot_data():
     return arrays, metadata
 
 
-def export_b_e_field_plot_data_npz(
-    output_path: str | Path = B_E_STACKPLOT_DATA_NPZ,
+def export_b_e_field_plot_data_hdf5(
+    output_path: str | Path = B_E_STACKPLOT_DATA_H5,
 ):
-    """Write the filtered, TG-aligned B/E data used by the stackplot panels."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
+    """Write full-resolution, TG-aligned B/E data for the stackplot panels."""
     arrays, metadata = build_b_e_field_plot_data()
     provenance = {
         "b_field_files": {rocket: str(path) for rocket, path in B_FIELD_CSVS.items()},
         "e_field_files": {rocket: str(path) for rocket, path in E_FIELD_CSVS.items()},
         "maglat_mapping_file": str(TG_TO_MAGLAT_CSV),
-        "maximum_time_resolution_s": TIME_STEP_S,
+        "resolution": "full source resolution",
     }
-    np.savez_compressed(
+    return write_hdf5(
         output_path,
-        **arrays,
-        metadata_json=np.array(json.dumps(metadata)),
-        provenance_json=np.array(json.dumps(provenance)),
+        arrays,
+        metadata_json=metadata,
+        provenance_json=provenance,
     )
-
-    return output_path
 
 
 def export_b_e_field_plot_data_csv(output_path: str | Path):
@@ -287,40 +281,47 @@ def export_b_e_field_plot_data_csv(output_path: str | Path):
 
 
 def load_brightness(
-    csv_path: str | Path = BRIGHTNESS_CSV,
+    brightness_h5_path: str | Path = BRIGHTNESS_H5,
     rocket: str = "397",
     altitude_km: int | None = None,
 ):
     """Load brightness versus TG for one rocket."""
-    time_s = []
-    brightness = []
-
-    if altitude_km is None:
-        brightness_columns = [
-            f"{rocket}_{altitude}_brightness" for altitude in BRIGHTNESS_ALTITUDES_KM
+    brightness_h5_path = Path(brightness_h5_path)
+    with h5py.File(brightness_h5_path, "r") as source:
+        if source.attrs.get("brightness_units") != "Rayleighs":
+            raise ValueError(f"{brightness_h5_path} is not Rayleigh-calibrated")
+        time_s = np.asarray(source["time_since_tg_s"], dtype=float)
+        brightness_group = source[f"rockets/{rocket}/brightness"]
+        if altitude_km is None:
+            dataset_names = [
+                f"{altitude}_km"
+                for altitude in BRIGHTNESS_ALTITUDES_KM
+                if f"{altitude}_km" in brightness_group
+            ]
+        else:
+            dataset_names = [f"{altitude_km}_km"]
+        if not dataset_names:
+            raise KeyError(f"No requested brightness altitude is available for rocket {rocket}")
+        brightness_arrays = [
+            np.asarray(brightness_group[name], dtype=float)
+            for name in dataset_names
         ]
-    else:
-        brightness_columns = [f"{rocket}_{altitude_km}_brightness"]
 
-    with Path(csv_path).open(newline="") as csv_file:
-        reader = csv.DictReader(csv_file)
-
-        for row in reader:
-            values = []
-            for column in brightness_columns:
-                value = row[column]
-                if value:
-                    values.append(float(value))
-
-            if values:
-                time_s.append(float(row["TG"]))
-                brightness.append(sum(values) / len(values))
-
-    return np.array(time_s), np.array(brightness)
+    brightness_stack = np.vstack(brightness_arrays)
+    finite_count = np.sum(np.isfinite(brightness_stack), axis=0)
+    brightness = np.full(time_s.shape, np.nan, dtype=float)
+    np.divide(
+        np.nansum(brightness_stack, axis=0),
+        finite_count,
+        out=brightness,
+        where=finite_count > 0,
+    )
+    valid = np.isfinite(time_s) & np.isfinite(brightness)
+    return time_s[valid], brightness[valid]
 
 
 def plot_brightness(
-    csv_path: str | Path = BRIGHTNESS_CSV,
+    brightness_h5_path: str | Path = BRIGHTNESS_H5,
     altitude_km: int | None = None,
     output_path: str | Path | None = None,
     show: bool = True,
@@ -330,7 +331,7 @@ def plot_brightness(
 
     for rocket in ("397", "398"):
         time_s, brightness = load_brightness(
-            csv_path=csv_path,
+            brightness_h5_path=brightness_h5_path,
             rocket=rocket,
             altitude_km=altitude_km,
         )
@@ -523,7 +524,7 @@ def plot_b_east_e_north(
 
 def plot_b_e_field_components(
     output_path: str | Path | None = None,
-    data_output_path: str | Path | None = B_E_STACKPLOT_DATA_NPZ,
+    data_output_path: str | Path | None = B_E_STACKPLOT_DATA_H5,
     x_axis: str = "time_since_TG",
     show: bool = True,
 ):
@@ -532,7 +533,7 @@ def plot_b_e_field_components(
         raise ValueError("x_axis must be 'time_since_TG' or 'maglat'")
 
     if data_output_path is not None:
-        export_b_e_field_plot_data_npz(data_output_path)
+        export_b_e_field_plot_data_hdf5(data_output_path)
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     maglat_mappings = load_maglat_mapping() if x_axis == "maglat" else None

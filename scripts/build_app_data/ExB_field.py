@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from .resampling import TIME_STEP_S, reduce_series_resolution
+    from .hdf5_io import write_hdf5
 except ImportError:
-    from resampling import TIME_STEP_S, reduce_series_resolution
+    from hdf5_io import write_hdf5
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -22,7 +21,7 @@ EXB_CSVS = {
     "398": SOURCE_DATA_DIR / "exb_v1_398.csv",
 }
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
-EXB_NPZ = APP_DATA_DIR / "exb_components_data.npz"
+EXB_H5 = APP_DATA_DIR / "exb_components_data.h5"
 EXB_TG_PLOT_PNG = SOURCE_DATA_DIR / "exb_components_time_since_TG.png"
 EXB_MAGLAT_PLOT_PNG = SOURCE_DATA_DIR / "exb_components_maglat.png"
 ROCKET_COLORS = {
@@ -149,16 +148,14 @@ def component_y_limits(component_spec):
 
 
 def exb_series_key(rocket: str, component_key: str, suffix: str):
-    """Build a stable NPZ key for one ExB component series."""
+    """Build a stable HDF5 dataset key for one ExB component series."""
     return f"{rocket}_exb_{component_key}_{suffix}"
 
 
-def export_exb_npz(
-    output_path: str | Path = EXB_NPZ,
+def export_exb_hdf5(
+    output_path: str | Path = EXB_H5,
 ) -> Path:
-    """Export reduced ExB component series for the stackplot app."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    """Export full-resolution ExB component series for the stackplot app."""
     arrays = {}
     series = []
     maglat_mappings = load_maglat_mapping()
@@ -173,10 +170,6 @@ def export_exb_npz(
                 EXB_CSVS[rocket],
                 component_column=component_spec["column"],
                 rocket=rocket,
-            )
-            time_since_tg_s, component = reduce_series_resolution(
-                time_since_tg_s,
-                component,
             )
             time_key = exb_series_key(rocket, component_spec["key"], "time_since_TG_s")
             maglat_key = exb_series_key(rocket, component_spec["key"], "magnetic_lat_deg")
@@ -208,19 +201,18 @@ def export_exb_npz(
         },
         "maglat_mapping_file": TG_TO_MAGLAT_CSV.name,
         "t0_tg_offset_s": T0_TG_OFFSET_S,
-        "maximum_time_resolution_s": TIME_STEP_S,
+        "resolution": "full source resolution",
         "display_x_limits_s": TG_X_LIMITS_S,
         "y_limit_time_range_s": Y_LIMIT_TIME_RANGE_S,
         "robust_y_percentiles": ROBUST_Y_PERCENTILES,
         "y_limits": y_limits,
         "series": series,
     }
-    np.savez_compressed(
+    return write_hdf5(
         output_path,
-        **arrays,
-        metadata_json=np.array(json.dumps(metadata)),
+        arrays,
+        metadata_json=metadata,
     )
-    return output_path
 
 
 def plot_exb_components(
@@ -293,7 +285,7 @@ def plot_exb_components(
 
 
 if __name__ == "__main__":
-    export_exb_npz()
+    export_exb_hdf5()
     plot_exb_components(
         output_path=EXB_TG_PLOT_PNG,
         x_axis="time_since_TG",

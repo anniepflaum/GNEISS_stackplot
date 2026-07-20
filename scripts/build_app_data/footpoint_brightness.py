@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+import h5py
 import numpy as np
-import pandas as pd
+
+try:
+    from .hdf5_io import write_hdf5
+except ImportError:
+    from hdf5_io import write_hdf5
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parents[1] / "data"
 APP_DATA_DIR = DATA_DIR / "app_data"
 SOURCE_DATA_DIR = DATA_DIR / "source_data"
-BRIGHTNESS_CSV = SOURCE_DATA_DIR / "brightness_vs_time_20260210_101900_102848_step0p05.csv"
-FOOTPOINT_BRIGHTNESS_NPZ = APP_DATA_DIR / "footpoint_brightness_data.npz"
+BRIGHTNESS_H5 = SOURCE_DATA_DIR / "brightness_vs_time_20260210_101900_102848_step0p05.h5"
+FOOTPOINT_BRIGHTNESS_H5 = APP_DATA_DIR / "footpoint_brightness_data.h5"
 TRAJECTORY_FILES = {
     "397": Path(
         "/Users/anniepflaum/lab317/asi_mapping/trajectories/GNEISS/"
@@ -24,46 +28,51 @@ TRAJECTORY_FILES = {
     ),
 }
 ASI_IMAGE_SOURCE = "ARV/VEE/BVR GASI_5577 TIFFs from optics.gi.alaska.edu/amisr_archive"
-ALTITUDES_KM = (95, 100, 105, 110)
+ALTITUDES_KM = (110,)
 
 
-def export_footpoint_brightness_npz(
-    csv_path: str | Path = BRIGHTNESS_CSV,
-    output_path: str | Path = FOOTPOINT_BRIGHTNESS_NPZ,
+def export_footpoint_brightness_hdf5(
+    brightness_h5_path: str | Path = BRIGHTNESS_H5,
+    output_path: str | Path = FOOTPOINT_BRIGHTNESS_H5,
 ):
     """Export stackplot-ready brightness arrays with trajectory provenance."""
-    csv_path = Path(csv_path)
+    brightness_h5_path = Path(brightness_h5_path)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = pd.read_csv(csv_path)
-    arrays = {
-        "time_since_TG_s": data["TG"].to_numpy(),
-    }
-
-    for rocket in ("397", "398"):
-        for altitude_km in ALTITUDES_KM:
-            column = f"{rocket}_{altitude_km}_brightness"
-            arrays[column] = data[column].to_numpy()
+    with h5py.File(brightness_h5_path, "r") as source:
+        if source.attrs.get("brightness_units") != "Rayleighs":
+            raise ValueError(f"{brightness_h5_path} is not Rayleigh-calibrated")
+        arrays = {
+            "time_since_TG_s": np.asarray(source["time_since_tg_s"], dtype=float),
+        }
+        for rocket in ("397", "398"):
+            for altitude_km in ALTITUDES_KM:
+                column = f"{rocket}_{altitude_km}_brightness"
+                arrays[column] = np.asarray(
+                    source[f"rockets/{rocket}/brightness/{altitude_km}_km"],
+                    dtype=float,
+                )
+        calibration_json = str(source.attrs["calibration_json"])
 
     metadata = {
         "source_data_file": {
             **{rocket: path.name for rocket, path in TRAJECTORY_FILES.items()},
             "asi_images": ASI_IMAGE_SOURCE,
         },
-        "source_brightness_csv": csv_path.name,
+        "source_brightness_h5": brightness_h5_path.name,
+        "brightness_units": "Rayleighs",
+        "calibration_json": calibration_json,
         "time_key": "time_since_TG_s",
         "brightness_key_template": "{rocket}_{altitude_km}_brightness",
     }
 
-    np.savez_compressed(
+    return write_hdf5(
         output_path,
-        **arrays,
-        metadata_json=np.array(json.dumps(metadata)),
+        arrays,
+        metadata_json=metadata,
     )
-
-    return output_path
 
 
 if __name__ == "__main__":
-    export_footpoint_brightness_npz()
+    export_footpoint_brightness_hdf5()
