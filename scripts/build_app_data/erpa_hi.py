@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from data_paths import app_data_dir, source_data_dir
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -12,9 +14,8 @@ except ImportError:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parents[1] / "data"
-APP_DATA_DIR = DATA_DIR / "app_data"
-SOURCE_DATA_DIR = DATA_DIR / "source_data"
+APP_DATA_DIR = app_data_dir()
+SOURCE_DATA_DIR = source_data_dir()
 ERPA_HI_CSVS = {
     "397": SOURCE_DATA_DIR / "fwd397hi.csv",
     "398": SOURCE_DATA_DIR / "fwd398hi.csv",

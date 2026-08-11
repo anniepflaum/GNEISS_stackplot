@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+from data_paths import app_data_dir, source_data_dir
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -13,12 +15,11 @@ except ImportError:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parents[1] / "data"
-APP_DATA_DIR = DATA_DIR / "app_data"
-SOURCE_DATA_DIR = DATA_DIR / "source_data"
+APP_DATA_DIR = app_data_dir()
+SOURCE_DATA_DIR = source_data_dir()
 EXB_CSVS = {
-    "397": SOURCE_DATA_DIR / "exb_v1_397.csv",
-    "398": SOURCE_DATA_DIR / "exb_v1_398.csv",
+    "397": SOURCE_DATA_DIR / "exb_v2_397.csv",
+    "398": SOURCE_DATA_DIR / "exb_v2_398.csv",
 }
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 EXB_H5 = APP_DATA_DIR / "exb_components_data.h5"

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from data_paths import app_data_dir, source_data_dir
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,9 +15,8 @@ except ImportError:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parents[1] / "data"
-APP_DATA_DIR = DATA_DIR / "app_data"
-SOURCE_DATA_DIR = DATA_DIR / "source_data"
+APP_DATA_DIR = app_data_dir()
+SOURCE_DATA_DIR = source_data_dir()
 PIP_VOFF_H5 = APP_DATA_DIR / "pip3_0_voff_data.h5"
 PIP_VOFF_PLOT_PNG = SOURCE_DATA_DIR / "pip3_0_voff_vs_time.png"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"

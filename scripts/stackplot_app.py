@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gneiss_paths import app_data_dir
+
 import h5py
 import numpy as np
 import pandas as pd
@@ -17,8 +19,7 @@ except ImportError:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
-APP_DATA_DIR = DATA_DIR / "app_data"
+APP_DATA_DIR = app_data_dir()
 B_E_H5 = APP_DATA_DIR / "b_e_field_components_data.h5"
 ERAU_H5 = APP_DATA_DIR / "erau_signal_data.h5"
 ERPA_HI_H5 = APP_DATA_DIR / "erpa_hi_data.h5"
@@ -28,6 +29,12 @@ PIP_VOFF_H5 = APP_DATA_DIR / "pip3_0_voff_data.h5"
 EXB_H5 = APP_DATA_DIR / "exb_components_data.h5"
 KEOGRAM_H5 = APP_DATA_DIR / "trajectory_keogram_green_20260210_101900_102848.h5"
 FOOTPOINT_BRIGHTNESS_H5 = APP_DATA_DIR / "footpoint_brightness_data.h5"
+BRIGHTNESS_AVG25_H5 = (
+    APP_DATA_DIR / "brightness_vs_time_20260210_101900_102848_step0p05_avg25.h5"
+)
+BRIGHTNESS_UNAVERAGED_H5 = (
+    APP_DATA_DIR / "brightness_vs_time_20260210_101900_102848_step0p05.h5"
+)
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 TG_X_LIMITS_S = (0.0, 588.0)
 PANEL_HEIGHT_PX = 260
@@ -399,6 +406,44 @@ def load_footpoint_brightness_panel(altitude_km: int = 110) -> dict:
     }
 
 
+def load_brightness_comparison_panel(altitude_km: int = 110) -> dict:
+    """Overlay averaged and unaveraged trajectory brightness for both rockets."""
+    traces = []
+    variants = (
+        (BRIGHTNESS_AVG25_H5, "avg25", "solid"),
+        (BRIGHTNESS_UNAVERAGED_H5, "unaveraged", "dot"),
+    )
+
+    with h5py.File(BRIGHTNESS_AVG25_H5, "r") as h5:
+        units = h5.attrs.get("brightness_units", "Rayleighs")
+
+    for path, variant, dash in variants:
+        for rocket in ("397", "398"):
+            traces.append(
+                {
+                    "lazy_hdf5": True,
+                    "hdf5_path": path,
+                    "time_key": "time_since_tg_s",
+                    "maglat_key": f"rockets/{rocket}/magnetic_latitude_deg",
+                    "value_key": f"rockets/{rocket}/brightness/{altitude_km}_km",
+                    "name": f"{rocket} {variant}",
+                    "color": plotly_color(ROCKET_COLORS[rocket]),
+                    "dash": dash,
+                    "secondary_y": False,
+                    "type": "scatter",
+                }
+            )
+
+    return {
+        "label": f"Trajectory brightness comparison {altitude_km} km",
+        "left_y_title": f"Brightness ({units})",
+        "right_y_title": None,
+        "left_y_type": "log",
+        "source_files": [path.name for path, _, _ in variants],
+        "traces": traces,
+    }
+
+
 def load_erau_panel() -> dict:
     (metadata,) = read_json_attributes(ERAU_H5, "metadata_json")
     traces = []
@@ -729,6 +774,7 @@ def load_panels() -> dict:
     panels.update(load_pip_voff_panels())
     panels.update(load_b_e_panels())
     panels["footpoint_brightness"] = load_footpoint_brightness_panel(altitude_km=110)
+    panels["brightness_comparison"] = load_brightness_comparison_panel(altitude_km=110)
     panels.update(load_keogram_panels())
     return panels
 
@@ -745,6 +791,7 @@ PANEL_ORDER = [
     "b_north_e_east",
     "b_east_e_north",
     "footpoint_brightness",
+    "brightness_comparison",
     "keogram_398",
     "keogram_397",
 ]

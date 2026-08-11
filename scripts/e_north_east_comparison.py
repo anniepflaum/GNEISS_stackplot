@@ -2,21 +2,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gneiss_paths import source_data_dir
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
-SOURCE_DATA_DIR = DATA_DIR / "source_data"
+SOURCE_DATA_DIR = source_data_dir()
 
 E_FIELD_CSVS = {
-    "397": SOURCE_DATA_DIR / "e_despun_subtracted_v1_397.csv",
-    "398": SOURCE_DATA_DIR / "e_despun_subtracted_v1_398.csv",
+    "397": SOURCE_DATA_DIR / "e_despun_subtracted_397_july30.csv",
+    "398": SOURCE_DATA_DIR / "e_despun_subtracted_398_july30.csv",
 }
 FLOW_CSVS = {
-    "397": SOURCE_DATA_DIR / "exb_v1_397.csv",
-    "398": SOURCE_DATA_DIR / "exb_v1_398.csv",
+    "397": SOURCE_DATA_DIR / "exb_july30_397.csv",
+    "398": SOURCE_DATA_DIR / "exb_july30_398.csv",
 }
 T0_TG_OFFSET_S = {
     "397": 0.3167,
@@ -60,6 +62,15 @@ PANELS = (
 def load_component(csv_path: str | Path, component_column: int, rocket: str):
     """Load one component and convert local file time to time since TG."""
     data = np.loadtxt(Path(csv_path), delimiter=",", comments="#")
+    if component_column >= data.shape[1]:
+        warnings.warn(
+            f"Skipping rocket {rocket}: {Path(csv_path).name} has "
+            f"{data.shape[1]} columns, so component column "
+            f"{component_column} is unavailable.",
+            stacklevel=2,
+        )
+        return None
+
     time_since_tg_s = data[:, 0] + T0_TG_OFFSET_S[rocket]
     values = data[:, component_column]
     return time_since_tg_s, values
@@ -116,11 +127,15 @@ def plot_e_flow_comparison():
     for ax, panel in zip(axes, PANELS):
         panel_series = []
         for rocket, csv_path in source_csvs(panel["source"]).items():
-            time_since_tg_s, values = load_component(
+            component = load_component(
                 csv_path,
                 component_column=panel["column"],
                 rocket=rocket,
             )
+            if component is None:
+                continue
+
+            time_since_tg_s, values = component
             panel_series.append((time_since_tg_s, values))
             ax.plot(
                 time_since_tg_s,

@@ -12,6 +12,8 @@ GNEISS_stackplot/
 ├── data/
 │   ├── app_data/
 │   │   ├── b_e_field_components_data.h5
+│   │   ├── brightness_vs_time_20260210_101900_102848_step0p05.h5
+│   │   ├── brightness_vs_time_20260210_101900_102848_step0p05_avg25.h5
 │   │   ├── chimps_397_downgoing_data.h5
 │   │   ├── erau_signal_data.h5
 │   │   ├── erpa_hi_data.h5
@@ -33,8 +35,18 @@ GNEISS_stackplot/
     └── requirements.txt
 ```
 
-The build scripts create full-resolution HDF5 data products. The instructions
-below assume those HDF5 files already exist.
+The build scripts create full-resolution HDF5 data products. The preferred lab
+layout stores source and app data outside this repository. Set:
+
+```bash
+export LAB317_DATA_ROOT="/Users/anniepflaum/lab317/data"
+```
+
+This resolves source data from `raw/rocket/gneiss-stackplot` and app data from
+`processed/gneiss/stackplot`. `GNEISS_SOURCE_DATA_DIR` and
+`GNEISS_APP_DATA_DIR` are direct overrides. Without these variables, scripts
+retain the repo-local `data/` fallback. See `config/example.env` and the
+checksum catalogs in `data/source_manifest.csv` and `data/app_manifest.csv`.
 
 ## Download the Prepared App Data
 
@@ -53,6 +65,8 @@ not through GitHub.
 
 ```text
 b_e_field_components_data.h5
+brightness_vs_time_20260210_101900_102848_step0p05.h5
+brightness_vs_time_20260210_101900_102848_step0p05_avg25.h5
 chimps_397_downgoing_data.h5
 erau_signal_data.h5
 erpa_hi_data.h5
@@ -99,6 +113,7 @@ The app includes:
 - B north and E east
 - B east and E north
 - Footpoint brightness at 110 km
+- Averaged-versus-unaveraged trajectory brightness at 110 km
 - Trajectory keograms for rockets 398 and 397
 
 Use the checkboxes to show or hide panels. Use the x-axis control to switch all

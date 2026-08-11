@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from data_paths import app_data_dir, source_data_dir, trajectory_data_dir
+
 import h5py
 import numpy as np
 
@@ -12,20 +14,13 @@ except ImportError:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parents[1] / "data"
-APP_DATA_DIR = DATA_DIR / "app_data"
-SOURCE_DATA_DIR = DATA_DIR / "source_data"
+APP_DATA_DIR = app_data_dir()
+SOURCE_DATA_DIR = source_data_dir()
 BRIGHTNESS_H5 = SOURCE_DATA_DIR / "brightness_vs_time_20260210_101900_102848_step0p05.h5"
 FOOTPOINT_BRIGHTNESS_H5 = APP_DATA_DIR / "footpoint_brightness_data.h5"
 TRAJECTORY_FILES = {
-    "397": Path(
-        "/Users/anniepflaum/lab317/asi_mapping/trajectories/GNEISS/"
-        "36397_GPS_Time_Export_01.csv"
-    ),
-    "398": Path(
-        "/Users/anniepflaum/lab317/asi_mapping/trajectories/GNEISS/"
-        "36398_GPS_Time_Export_00.csv"
-    ),
+    "397": trajectory_data_dir() / "36397_GPS_Time_Export_01.csv",
+    "398": trajectory_data_dir() / "36398_GPS_Time_Export_00.csv",
 }
 ASI_IMAGE_SOURCE = "ARV/VEE/BVR GASI_5577 TIFFs from optics.gi.alaska.edu/amisr_archive"
 ALTITUDES_KM = (110,)

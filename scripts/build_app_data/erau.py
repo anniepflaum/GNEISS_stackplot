@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from data_paths import app_data_dir, source_data_dir
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -14,9 +16,8 @@ except ImportError:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parents[1] / "data"
-APP_DATA_DIR = DATA_DIR / "app_data"
-ERAU_MAT = DATA_DIR / "source_data" / "ERAU_Raw_signal_export.mat"
+APP_DATA_DIR = app_data_dir()
+ERAU_MAT = source_data_dir() / "ERAU_Raw_signal_export.mat"
 ERAU_H5 = APP_DATA_DIR / "erau_signal_data.h5"
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 SIGNAL_VARIABLE = "Signal_397_398"
