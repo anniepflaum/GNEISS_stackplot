@@ -45,8 +45,7 @@ export LAB317_DATA_ROOT="/Users/anniepflaum/lab317/data"
 This resolves source data from `raw/rocket/gneiss-stackplot` and app data from
 `processed/gneiss/stackplot`. `GNEISS_SOURCE_DATA_DIR` and
 `GNEISS_APP_DATA_DIR` are direct overrides. Without these variables, scripts
-retain the repo-local `data/` fallback. See `config/example.env` and the
-checksum catalogs in `data/source_manifest.csv` and `data/app_manifest.csv`.
+retain the repo-local `data/` fallback. See `config/example.env`.
 
 ## Download the Prepared App Data
 
@@ -77,8 +76,8 @@ tg_to_maglat.csv
 trajectory_keogram_green_20260210_101900_102848.h5
 ```
 
-`exb_components_data.h5` may also be included in the download, but the ExB
-panels are currently hidden and the app does not require that file to start.
+`exb_components_data.h5` provides the three ExB panels and is required for the
+app to start.
 
 From the repository root, the installation can be checked with:
 
@@ -109,7 +108,7 @@ The app includes:
 - CHIMPS downgoing electron energy-time spectrogram
 - CHIMPS downgoing electron total counts
 - PIP3 low-gain Voff for rockets 397 and 398
-- (ExB)/B^2 east, north, and up (hidden as of 7/20/26)
+- (ExB)/B^2 east, north, and up
 - B north and E east
 - B east and E north
 - Footpoint brightness at 110 km

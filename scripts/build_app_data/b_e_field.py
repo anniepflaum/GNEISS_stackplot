@@ -23,8 +23,8 @@ B_FIELD_CSVS = {
     "398": SOURCE_DATA_DIR / "b_despun_398.csv",
 }
 E_FIELD_CSVS = {
-    "397": SOURCE_DATA_DIR / "e_despun_subtracted_v2_397.csv",
-    "398": SOURCE_DATA_DIR / "e_despun_subtracted_v3_398.csv",
+    "397": SOURCE_DATA_DIR / "e_despun_subtracted_397_july30.csv",
+    "398": SOURCE_DATA_DIR / "e_despun_subtracted_398_july30.csv",
 }
 BRIGHTNESS_H5 = (
     SOURCE_DATA_DIR
@@ -527,7 +527,7 @@ def plot_b_e_field_components(
     output_path: str | Path | None = None,
     data_output_path: str | Path | None = B_E_STACKPLOT_DATA_H5,
     x_axis: str = "time_since_TG",
-    show: bool = True,
+    show: bool = False,
 ):
     """Plot B/E component pairs in two stacked subplots."""
     if x_axis not in {"time_since_TG", "maglat"}:

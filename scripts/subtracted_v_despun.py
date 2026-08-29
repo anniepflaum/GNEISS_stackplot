@@ -13,8 +13,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SOURCE_DATA_DIR = source_data_dir()
 
 DESPIN_CSVS = {
-    "397": SOURCE_DATA_DIR / "despin_v2_397.csv",
-    "398": SOURCE_DATA_DIR / "despin_v2_398.csv",
+    "397": SOURCE_DATA_DIR / "despin_july30_397.csv",
+    "398": SOURCE_DATA_DIR / "despin_july30_398.csv",
 }
 SUBTRACTED_CSVS = {
     "397": SOURCE_DATA_DIR / "e_despun_subtracted_397_july30.csv",
@@ -25,9 +25,9 @@ T0_TG_OFFSET_S = {
     "398": 30.4242,
 }
 TRACE_COLORS = {
-    ("397", "despin_v2"): "#8ecae6",
+    ("397", "despin_july30"): "#8ecae6",
     ("397", "subtracted"): "tab:blue",
-    ("398", "despin_v2"): "#ffb36b",
+    ("398", "despin_july30"): "#ffb36b",
     ("398", "subtracted"): "tab:orange",
 }
 X_LIMITS_S = (100.0, 500.0)
@@ -37,7 +37,7 @@ PANELS = (
         "title": "E east",
         "column": 1,
         "ylabel": "E east (V/m)",
-        "ylim": (-0.04, 0.06),
+        "ylim": (-0.08, 0.06),
     },
     {
         "title": "E north",
@@ -79,7 +79,7 @@ def plot_subtracted_v_despun():
     fig.suptitle(source_file_subtitle(), fontsize=9, y=0.995)
 
     source_groups = (
-        ("despin_v2", DESPIN_CSVS),
+        ("despin_july30", DESPIN_CSVS),
         ("subtracted", SUBTRACTED_CSVS),
     )
 

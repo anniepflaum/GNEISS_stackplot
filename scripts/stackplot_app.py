@@ -653,8 +653,7 @@ def load_pip_voff_panels() -> dict:
 
 
 def load_exb_panels() -> dict:
-    data = read_hdf5(EXB_H5)
-    metadata = json.loads(data["metadata_json"])
+    (metadata,) = read_json_attributes(EXB_H5, "metadata_json")
     panels = {}
     component_labels = {
         "east": "(ExB)/B^2 east",
@@ -665,8 +664,6 @@ def load_exb_panels() -> dict:
     for series in metadata["series"]:
         component = series["component"]
         panel_id = f"exb_{component}"
-        time_since_tg_s = data[series["time_key"]]
-        values = data[series["value_key"]]
         panels.setdefault(
             panel_id,
             {
@@ -681,10 +678,12 @@ def load_exb_panels() -> dict:
         )
         panels[panel_id]["traces"].append(
             {
+                "lazy_hdf5": True,
+                "hdf5_path": EXB_H5,
+                "time_key": series["time_key"],
+                "maglat_key": series["maglat_key"],
+                "value_key": series["value_key"],
                 "type": "scatter",
-                "time_since_tg_s": time_since_tg_s,
-                "magnetic_lat_deg": data[series["maglat_key"]],
-                "y": values,
                 "name": series["label"],
                 "color": plotly_color(series["color"]),
                 "dash": "solid",
@@ -773,6 +772,7 @@ def load_panels() -> dict:
     panels.update(load_chimps_panels())
     panels.update(load_pip_voff_panels())
     panels.update(load_b_e_panels())
+    panels.update(load_exb_panels())
     panels["footpoint_brightness"] = load_footpoint_brightness_panel(altitude_km=110)
     panels["brightness_comparison"] = load_brightness_comparison_panel(altitude_km=110)
     panels.update(load_keogram_panels())
@@ -790,6 +790,9 @@ PANEL_ORDER = [
     "erpa_hi",
     "b_north_e_east",
     "b_east_e_north",
+    "exb_east",
+    "exb_north",
+    "exb_up",
     "footpoint_brightness",
     "brightness_comparison",
     "keogram_398",

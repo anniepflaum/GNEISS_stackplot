@@ -18,8 +18,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 APP_DATA_DIR = app_data_dir()
 SOURCE_DATA_DIR = source_data_dir()
 EXB_CSVS = {
-    "397": SOURCE_DATA_DIR / "exb_v2_397.csv",
-    "398": SOURCE_DATA_DIR / "exb_v2_398.csv",
+    "397": SOURCE_DATA_DIR / "exb_july30_397.csv",
+    "398": SOURCE_DATA_DIR / "exb_july30_398.csv",
 }
 TG_TO_MAGLAT_CSV = APP_DATA_DIR / "tg_to_maglat.csv"
 EXB_H5 = APP_DATA_DIR / "exb_components_data.h5"
@@ -219,7 +219,7 @@ def export_exb_hdf5(
 def plot_exb_components(
     output_path: str | Path | None = EXB_TG_PLOT_PNG,
     x_axis: str = "time_since_TG",
-    show: bool = True,
+    show: bool = False,
 ):
     """Plot ExB east, north, and up components for both rockets."""
     if x_axis not in {"time_since_TG", "maglat"}:
